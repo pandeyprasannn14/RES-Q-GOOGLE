@@ -1,2 +1,1 @@
-# RES-Q-GOOGLE
-112
+# Res-Q-112

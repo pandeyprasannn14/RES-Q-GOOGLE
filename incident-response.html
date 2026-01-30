@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ResQ 112 - Incident Response</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  <style>
+    :root {
+        --bg-color: #000000;
+        --text-color: #e0e0e0;
+        --text-color-light: #fff;
+        --text-highlight-glow: #00ffff;
+        --glass-card-bg: rgba(255,255,255,0.05);
+        --glass-card-border: rgba(255,255,255,0.1);
+        --header-bg: rgba(0,0,0,0.3);
+        --input-bg: rgba(0,0,0,0.2);
+        --primary-font: 'Exo 2', sans-serif;
+        --secondary-font: 'Space Grotesk', sans-serif;
+    }
+    body.light-theme {
+        --bg-color: #eaf2f8;
+        --text-color: #34495e;
+        --text-color-light: #1c2833;
+        --text-highlight-glow: #0056b3;
+        --glass-card-bg: rgba(255,255,255,0.6);
+        --glass-card-border: rgba(220,220,220,0.8);
+        --header-bg: rgba(255,255,255,0.2);
+        --input-bg: rgba(0,0,0,0.05);
+    }
+    body{
+        font-family:var(--secondary-font); background-color:var(--bg-color); color:var(--text-color);
+        overflow-x:hidden; transition: background-color 0.5s ease, color 0.5s ease;
+    }
+    #ripple-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0}
+    .content-overlay{position:relative;z-index:2;min-height:100vh;}
+    header { background-color: var(--header-bg); }
+    .logo-container span { font-family: var(--secondary-font); color: var(--text-color-light); }
+    .glass-card{
+        background:var(--glass-card-bg); backdrop-filter:blur(10px); border:1px solid var(--glass-card-border);
+        padding:24px; border-radius:16px; transition:all .3s ease; color: var(--text-color);
+    }
+    .glow-button{
+        display:inline-block;padding:12px 24px;border-radius:8px;background:var(--text-highlight-glow);color:black;
+        font-weight:600;text-align:center;transition:all .3s ease; border: 1px solid var(--text-highlight-glow); cursor: pointer;
+    }
+    body.light-theme .glow-button { color: white; }
+    .glow-button:hover{box-shadow:0 0 10px var(--text-highlight-glow),0 0 25px var(--text-highlight-glow);}
+    .glow-button:disabled{background:#555;color:#999;cursor:not-allowed;border-color:#555;}
+    .glow-button:disabled:hover{box-shadow:none;}
+    .back-button{background:rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2);}
+    .back-button:hover{background:rgba(255,255,255,0.2); box-shadow:0 0 10px #ffffff,0 0 15px #ffffff;}
+    .incident-btn{background:rgba(0,255,255,0.1);border:1px solid var(--glass-card-border);transition:all .2s ease-in-out;}
+    .incident-btn:hover{background:rgba(0,255,255,0.2);transform:scale(1.05);}
+    .incident-btn.selected{background:var(--text-highlight-glow); color: var(--text-color-light);}
+    body.light-theme .incident-btn.selected { color: white; }
+    input, textarea{
+        background:var(--input-bg); border:1px solid var(--glass-card-border); border-radius:8px;
+        padding:10px; width:100%; color: var(--text-color-light);
+    }
+    input:focus, textarea:focus{border-color:var(--text-highlight-glow);outline:none;}
+    #theme-switcher {
+        background: none; border: 1px solid var(--glass-card-border); border-radius: 50%; width: 40px; height: 40px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; color: var(--text-color-light);
+    }
+    .sun-icon { display: none; }
+    body.light-theme .moon-icon { display: none; }
+    body.light-theme .sun-icon { display: block; }
+  </style>
+  <script>
+    (function() {
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'light') { document.body.classList.add('light-theme'); }
+    })();
+  </script>
+</head>
+<body>
+<canvas id="ripple-canvas"></canvas>
+
+<div class="content-overlay flex flex-col min-h-screen">
+  <header class="p-4 flex justify-between items-center">
+    <div class="flex items-center space-x-4 logo-container">
+      <img src="logo.png.png" alt="logo" class="h-12 w-12"/>
+      <span class="text-2xl font-bold">ResQ 112</span>
+    </div>
+    <div class="flex items-center gap-4">
+        <select id="languageSwitcher" class="bg-black/50 text-white p-2 rounded border border-gray-700">
+            <option value="en">English</option>
+            <option value="hi">हिन्दी</option>
+            <option value="as">অসমীয়া</option>
+        </select>
+        <button id="theme-switcher" title="Toggle theme">
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.591 1.59a.75.75 0 11-1.06-1.06l1.59-1.591a.75.75 0 011.06 0zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.894 17.894a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06zM12 21a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 21zM5.106 17.894a.75.75 0 010-1.06l1.591-1.59a.75.75 0 111.06 1.06l-1.59 1.591a.75.75 0 01-1.06 0zM3 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3.75A.75.75 0 013 12zM6.106 5.106a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06z"></path></svg>
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-3.51 1.713-6.625 4.43-8.56a.75.75 0 01.818.162z" clip-rule="evenodd"></path></svg>
+        </button>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 my-8 flex-grow flex flex-col items-center justify-center">
+    <div id="form-container" class="glass-card w-full max-w-2xl rounded-xl">
+      <h2 class="text-2xl font-bold mb-4 text-center" data-i18n="title" style="color: var(--text-highlight-glow);">AI Incident Reporting System</h2>
+      
+      <label class="font-semibold block mb-2" data-i18n="step1_label">Step 1: AI is detecting incident type...</label>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4 mb-4">
+        <button class="incident-btn p-3 rounded-lg" data-type="Traffic Accident" data-i18n="type_traffic">🚗 Traffic Accident</button>
+        <button class="incident-btn p-3 rounded-lg" data-type="Theft / Robbery" data-i18n="type_theft">💰 Theft / Robbery</button>
+        <button class="incident-btn p-3 rounded-lg" data-type="Fire" data-i18n="type_fire">🔥 Fire</button>
+        <button class="incident-btn p-3 rounded-lg" data-type="Medical Emergency" data-i18n="type_medical">✚ Medical</button>
+        <button class="incident-btn p-3 rounded-lg" data-type="Cyber Crime" data-i18n="type_cyber">💻 Cyber Crime</button>
+        <button class="incident-btn p-3 rounded-lg" data-type="Other" data-i18n="type_other">❓ Other</button>
+      </div>
+
+      <label class="font-semibold block mb-2" data-i18n="step2_label">Step 2: Describe the incident</label>
+      <textarea id="description" rows="3" class="mb-4" placeholder="Provide a brief, clear summary..."></textarea>
+      
+      <label class="font-semibold block mb-2" data-i18n="step3_label">Step 3: AI Threat Assessment</label>
+      <div class="flex items-center gap-4 mb-4">
+          <input id="severity" type="range" min="1" max="5" value="3" class="w-full">
+          <span id="severity-label" class="font-bold text-lg w-28 text-center text-yellow-400">Moderate</span>
+      </div>
+
+      <label class="font-semibold block mb-2" data-i18n="step4_label">Step 4: Upload Evidence (AI will analyze)</label>
+      <input type="file" id="evidence-file" class="mb-6">
+
+      <button id="submit-btn" class="glow-button w-full text-lg">Submit Incident Report</button>
+    </div>
+
+    <div id="success-container" class="glass-card w-full max-w-2xl text-center hidden rounded-xl">
+        <h2 class="text-3xl font-bold text-green-400 mb-4" data-i18n="success_title">Report Submitted!</h2>
+        <p class="mb-4" data-i18n="success_desc">Your incident has been logged. The authorities have been notified.</p>
+        <p class="font-semibold text-lg mt-6" data-i18n="ticket_label">Your Response Ticket ID:</p>
+        <p id="ticket-id" class="text-2xl font-mono bg-black/50 py-2 px-4 rounded-lg my-2" style="color: var(--text-highlight-glow);"></p>
+    </div>
+
+    <a href="dashboard.html" class="glow-button back-button mt-8" data-i18n="back_button">Back to Dashboard</a>
+  </main>
+</div>
+<script>
+// --- THEME SWITCHER LOGIC ---
+const themeSwitcher = document.getElementById('theme-switcher');
+themeSwitcher.addEventListener('click', () => {
+    document.body.classList.toggle('light-theme');
+    const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
+    localStorage.setItem('theme', currentTheme);
+});
+// Firebase Config
+const firebaseConfig = {
+    apiKey: "AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4", authDomain: "sos-c1499.firebaseapp.com",
+    databaseURL: "https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app", projectId: "sos-c1499",
+    storageBucket: "sos-c1499.firebasestorage.app", messagingSenderId: "1008729495848",
+    appId: "1:1008729495848:web:7d6c7d3a6047e2736e981d", measurementId: "G-JGBY3ZZPGC"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+// Translations
+const translations = {
+    en: {
+        title: "AI Incident Reporting System", step1_label: "Step 1: AI is detecting incident type...",
+        type_traffic: "🚗 Traffic Accident", type_theft: "💰 Theft / Robbery", type_fire: "🔥 Fire", type_medical: "✚ Medical", type_cyber: "💻 Cyber Crime", type_other: "❓ Other",
+        step2_label: "Step 2: Describe the incident", step3_label: "Step 3: AI Threat Assessment", step4_label: "Step 4: Upload Evidence (AI will analyze)",
+        submit_btn: "Submit Incident Report", back_button: "Back to Dashboard", success_title: "Report Submitted!",
+        success_desc: "Your incident has been logged. The authorities have been notified.", ticket_label: "Your Response Ticket ID:",
+        severity_1: "Minor", severity_2: "Low", severity_3: "Moderate", severity_4: "High", severity_5: "Critical",
+        error_location: "Error: Geolocation is required but failed. Please enable location services.", error_details: "Error: Please select an incident type and provide a description.",
+    },
+    hi: {
+        title: "एआई घटना रिपोर्टिंग प्रणाली", step1_label: "चरण 1: एआई घटना के प्रकार का पता लगा रहा है...",
+        type_traffic: "🚗 यातायात दुर्घटना", type_theft: "💰 चोरी / डकैती", type_fire: "🔥 आग", type_medical: "✚ चिकित्सा", type_cyber: "💻 साइबर अपराध", type_other: "❓ अन्य",
+        step2_label: "चरण 2: घटना का वर्णन करें", step3_label: "चरण 3: एआई द्वारा खतरे का आकलन", step4_label: "चरण 4: सबूत अपलोड करें (एआई विश्लेषण करेगा)",
+        submit_btn: "घटना की रिपोर्ट जमा करें", back_button: "डैशबोर्ड पर वापस जाएं", success_title: "रिपोर्ट सबमिट हो गई!",
+        success_desc: "आपकी घटना दर्ज कर ली गई है। अधिकारियों को सूचित कर दिया गया है।", ticket_label: "आपकी प्रतिक्रिया टिकट आईडी:",
+        severity_1: "हल्का", severity_2: "कम", severity_3: "मध्यम", severity_4: "उच्च", severity_5: "गंभीर",
+        error_location: "त्रुटि: जियोलोकेशन आवश्यक है लेकिन विफल रहा। कृपया स्थान सेवाएं सक्षम करें।", error_details: "त्रुटि: कृपया एक घटना प्रकार चुनें और विवरण प्रदान करें।",
+    },
+    as: {
+        title: "এআই ঘটনা প্ৰতিবেদন প্ৰণালী", step1_label: "ষ্টেপ ১: এআই-এ ঘটনাৰ প্ৰকাৰ চিনাক্ত কৰি আছে...",
+        type_traffic: "🚗 যান-বাহন দুৰ্ঘটনা", type_theft: "💰 চুৰি / ডকাইতি", type_fire: "🔥 জুই", type_medical: "✚ চিকিৎসা", type_cyber: "💻 চাইবাৰ ক্ৰাইম", type_other: "❓ অন্যান্য",
+        step2_label: "ষ্টেপ ২: ঘটনাটো বৰ্ণনা কৰক", step3_label: "ষ্টেপ ৩: এআই ভাবুকি মূল্যাঙ্কন", step4_label: "ষ্টেপ ৪: প্ৰমাণ আপলোড কৰক (এআই-এ বিশ্লেষণ কৰিব)",
+        submit_btn: "ঘটনাৰ প্ৰতিবেদন দাখিল কৰক", back_button: "ডেশ্বব’ৰ্ডলৈ ঘূৰি যাওক", success_title: "প্ৰতিবেদন দাখিল হ'ল!",
+        success_desc: "আপোনাৰ ঘটনাটো লিপিবদ্ধ কৰা হৈছে। কৰ্তৃপক্ষক অৱগত কৰোৱা হৈছে।", ticket_label: "আপোনাৰ সঁহাৰি টিকেট আইডি:",
+        severity_1: "ক্ষুদ্ৰ", severity_2: "কম", severity_3: "মধ্যমীয়া", severity_4: "উচ্চ", severity_5: "জটিল",
+        error_location: "ত্রুটি: জিঅ'লকেচনৰ প্ৰয়োজন কিন্তু విఫല হ'ল। অনুগ্ৰহ কৰি লকেচন সেৱা সক্ষম কৰক।", error_details: "ত্রুটি: অনুগ্ৰহ কৰি এটা ঘটনাৰ প্ৰকাৰ বাছনি কৰক আৰু বিৱৰণ দিয়ক।",
+    }
+};
+
+const incidentButtons = document.querySelectorAll(".incident-btn"), severitySlider = document.getElementById("severity"),
+      severityLabel = document.getElementById("severity-label"), submitBtn = document.getElementById("submit-btn");
+let selectedIncidentType = null;
+incidentButtons.forEach(button => {
+    button.addEventListener("click", () => {
+        incidentButtons.forEach(btn => btn.classList.remove("selected"));
+        button.classList.add("selected"); selectedIncidentType = button.dataset.type;
+    });
+});
+severitySlider.addEventListener("input", () => {
+    const lang = localStorage.getItem("lang") || "en", level = severitySlider.value;
+    const severityText = translations[lang][`severity_${level}`];
+    severityLabel.textContent = severityText;
+    const colors = ["text-green-400", "text-blue-400", "text-yellow-400", "text-orange-400", "text-red-500"];
+    severityLabel.className = `font-bold text-lg w-28 text-center ${colors[level-1]}`;
+});
+function getUserInfo() { return { name: localStorage.getItem("userName") || localStorage.getItem("name") || "Unknown", id: localStorage.getItem("userId") || localStorage.getItem("id") || "unknown", phone: localStorage.getItem("phone") || localStorage.getItem("mobile") || "", }; }
+submitBtn.addEventListener("click", () => {
+    const description = document.getElementById("description").value, lang = localStorage.getItem("lang") || "en";
+    if (!selectedIncidentType || !description) { alert(translations[lang].error_details); return; }
+    submitBtn.disabled = true; submitBtn.textContent = "Submitting...";
+    navigator.geolocation.getCurrentPosition( (position) => {
+        const ticketId = `INC-${Date.now()}`;
+        const incidentData = {
+            ticketId, user: getUserInfo(), incidentType: selectedIncidentType, description,
+            severity: parseInt(severitySlider.value), location: { lat: position.coords.latitude, lng: position.coords.longitude, },
+            timestamp: new Date().toISOString(), status: "Pending", fileName: document.getElementById("evidence-file").files[0]?.name || "No file uploaded"
+        };
+        db.ref('incidents/' + ticketId).set(incidentData).then(() => {
+            document.getElementById("form-container").classList.add("hidden");
+            document.getElementById("ticket-id").textContent = ticketId;
+            document.getElementById("success-container").classList.remove("hidden");
+        }).catch((error) => {
+            alert("Error submitting report: " + error.message);
+            submitBtn.disabled = false; submitBtn.textContent = translations[lang].submit_btn;
+        });
+    }, (error) => {
+        alert(translations[lang].error_location); console.error("Geolocation error:", error);
+        submitBtn.disabled = false; submitBtn.textContent = translations[lang].submit_btn;
+    }, { enableHighAccuracy: true });
+});
+const switcher = document.getElementById("languageSwitcher");
+function updateLanguage(lang) {
+    localStorage.setItem("lang", lang);
+    document.querySelectorAll("[data-i18n]").forEach(el => {
+        const key = el.getAttribute("data-i18n");
+        if (translations[lang]?.[key]) { el.innerText = translations[lang][key]; }
+    });
+    submitBtn.textContent = translations[lang].submit_btn;
+    document.getElementById("description").placeholder = translations[lang].step2_placeholder || "Provide a brief, clear summary...";
+    severitySlider.dispatchEvent(new Event('input'));
+}
+switcher.addEventListener("change", e => updateLanguage(e.target.value));
+window.addEventListener("load", () => {
+    const savedLang = localStorage.getItem("lang") || "en";
+    switcher.value = savedLang; updateLanguage(savedLang);
+});
+const canvas=document.getElementById("ripple-canvas"),ctx=canvas.getContext("2d");
+canvas.width=innerWidth;canvas.height=innerHeight; let ripples=[];
+class Ripple{constructor(x,y){this.x=x;this.y=y;this.radius=0;this.alpha=1;}
+update(){this.radius+=1.5;this.alpha-=0.01;}
+draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,2*Math.PI);ctx.strokeStyle=`rgba(0,255,255,${this.alpha})`;ctx.stroke();}}
+function animate(){ctx.clearRect(0,0,canvas.width,canvas.height);
+ripples.forEach((r,i)=>{r.update();r.draw();if(r.alpha<=0)ripples.splice(i,1);});
+requestAnimationFrame(animate);}
+animate();
+addEventListener("mousemove",e=>ripples.push(new Ripple(e.clientX,e.clientY)));
+addEventListener("resize",()=>{canvas.width=innerWidth;canvas.height=innerHeight});
+</script>
+</body>
+</html>

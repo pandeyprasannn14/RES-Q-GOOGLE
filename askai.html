@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ResQ 112 - Ask AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
+  
+  <style>
+    :root {
+        --bg-color: #000000;
+        --text-color: #e0e0e0;
+        --text-color-light: #fff;
+        --text-highlight-glow: #00ffff;
+        --glass-card-bg: rgba(255,255,255,0.05);
+        --glass-card-border: rgba(255,255,255,0.1);
+        --header-bg: rgba(0,0,0,0.3);
+        --input-bg: rgba(255,255,255,0.05);
+        --primary-font: 'Exo 2', sans-serif;
+        --secondary-font: 'Space Grotesk', sans-serif;
+    }
+    body.light-theme {
+        --bg-color: #eaf2f8;
+        --text-color: #34495e;
+        --text-color-light: #1c2833;
+        --text-highlight-glow: #0056b3;
+        --glass-card-bg: rgba(255,255,255,0.6);
+        --glass-card-border: rgba(220,220,220,0.8);
+        --header-bg: rgba(255,255,255,0.2);
+        --input-bg: rgba(0,0,0,0.05);
+    }
+    body {
+        font-family: var(--secondary-font);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        transition: background-color 0.5s ease, color 0.5s ease;
+        overflow-y: auto;
+    }
+    #ripple-canvas {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
+    }
+    .content-overlay {
+        position: relative; z-index: 2; min-height: 100vh;
+    }
+    header { background-color: var(--header-bg); }
+    .logo-container span { font-family: var(--secondary-font); color: var(--text-color-light); }
+    .glass-card {
+        background: var(--glass-card-bg); backdrop-filter:blur(10px); border:1px solid var(--glass-card-border);
+        padding:20px; border-radius:16px; transition:all .3s ease; display: flex; flex-direction: column;
+    }
+    .glow-button {
+        display:inline-block; padding:12px 24px; border-radius:8px; background:var(--text-highlight-glow);
+        color:black; font-weight:600; text-align:center; transition:all .3s ease; border: 1px solid var(--text-highlight-glow);
+    }
+    body.light-theme .glow-button { color: white; }
+    .glow-button:hover { box-shadow:0 0 10px var(--text-highlight-glow),0 0 25px var(--text-highlight-glow); }
+    .back-button { background:rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); }
+    .back-button:hover { background:rgba(255,255,255,0.2); }
+    #messages {
+        flex: 1; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.3);
+        border-radius: 8px; margin-bottom: 16px; min-height: 200px;
+    }
+    body.light-theme #messages { background: rgba(0,0,0,0.05); }
+    .user { color: var(--text-highlight-glow); margin: 8px 0; font-weight: 600; white-space: pre-wrap; }
+    .bot { color: var(--text-color); margin: 8px 0; white-space: pre-wrap; }
+    .bot p { margin: 0.5em 0; }
+    .bot h1, .bot h2, .bot h3 { margin-top: 1em; margin-bottom: 0.5em; color: aquamarine; }
+    body.light-theme .bot h1, body.light-theme .bot h2, body.light-theme .bot h3 { color: #007799; }
+    .bot ul { padding-left: 20px; }
+    #inputArea { display: flex; gap: 10px; }
+    #inputArea input {
+        flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid var(--glass-card-border);
+        background: var(--input-bg); color: var(--text-color); font-size: 16px;
+        outline: none; transition: all 0.3s ease;
+    }
+    #inputArea input:focus { border-color: var(--text-highlight-glow); box-shadow: 0 0 8px var(--text-highlight-glow); }
+    #theme-switcher {
+        background: none; border: 1px solid var(--glass-card-border); border-radius: 50%; width: 40px; height: 40px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; color: var(--text-color-light);
+    }
+    .sun-icon { display: none; }
+    body.light-theme .moon-icon { display: none; }
+    body.light-theme .sun-icon { display: block; }
+    .prompt-btn {
+        background-color: rgba(255, 255, 255, 0.1);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        padding: 8px 12px;
+        border-radius: 20px;
+        font-size: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+    .prompt-btn:hover {
+        background-color: rgba(0, 255, 255, 0.2);
+        border-color: rgba(0, 255, 255, 0.5);
+    }
+    body.light-theme .prompt-btn {
+        background-color: rgba(0, 0, 0, 0.05);
+        border-color: rgba(0, 0, 0, 0.1);
+    }
+    body.light-theme .prompt-btn:hover {
+        background-color: rgba(0, 86, 179, 0.1);
+        border-color: rgba(0, 86, 179, 0.3);
+    }
+  </style>
+  <script>
+    (function() {
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'light') { document.body.classList.add('light-theme'); }
+    })();
+  </script>
+</head>
+<body>
+<canvas id="ripple-canvas"></canvas>
+
+<div class="content-overlay flex flex-col min-h-screen">
+  <header class="p-4 flex justify-between items-center">
+    <div class="flex items-center space-x-4 logo-container">
+      <img src="logo.png.png" alt="logo" class="h-12 w-12"/>
+      <span class="text-2xl font-bold">ResQ 112</span>
+    </div>
+    <div class="flex items-center gap-4">
+        <select id="languageSwitcher" class="bg-black/50 text-white p-2 rounded border border-gray-700">
+            <option value="en">English</option>
+            <option value="hi">हिन्दी</option>
+            <option value="as">অসমীয়া</option>
+        </select>
+        <button id="theme-switcher" title="Toggle theme">
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.591 1.59a.75.75 0 11-1.06-1.06l1.59-1.591a.75.75 0 011.06 0zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.894 17.894a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06zM12 21a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 21zM5.106 17.894a.75.75 0 010-1.06l1.591-1.59a.75.75 0 111.06 1.06l-1.59 1.591a.75.75 0 01-1.06 0zM3 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3.75A.75.75 0 013 12zM6.106 5.106a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06z"></path></svg>
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-3.51 1.713-6.625 4.43-8.56a.75.75 0 01.818.162z" clip-rule="evenodd"></path></svg>
+        </button>
+    </div>
+  </header>
+
+  <main class="container mx-auto px-4 my-8 flex-grow flex flex-col items-center justify-center">
+    <div class="glass-card w-full max-w-3xl h-[70vh]">
+      <h2 class="text-2xl font-bold mb-4 text-center" data-i18n="chat_title" style="color: var(--text-highlight-glow);">🤖 Ask Res-Q AI</h2>
+      <div id="messages"></div>
+
+      <div id="prompt-suggestions" class="mb-4 flex flex-wrap gap-2 justify-center">
+        <button class="prompt-btn" data-prompt="Plan a 7-day road trip through Meghalaya">⛰️ Plan Meghalaya Trip</button>
+        <button class="prompt-btn" data-prompt="Suggest some good homestays in Gangtok, Sikkim">🏡 Homestays in Gangtok</button>
+        <button class="prompt-btn" data-prompt="What's the best local food to try in Guwahati?">🍜 Food in Guwahati</button>
+        <button class="prompt-btn" data-prompt="Create a budget for a 4-day solo trip to Darjeeling">💰 Budget for Darjeeling</button>
+        <button class="prompt-btn" data-prompt="Cultural tips for visiting monasteries in Sikkim?">🙏 Monastery Etiquette</button>
+        <button class="prompt-btn" data-prompt="How do I travel from Guwahati to Tawang?">🚌 Guwahati to Tawang</button>
+        <button class="prompt-btn" data-prompt="What are the must-visit places in Majuli, Assam?">🏞️ Places in Majuli</button>
+        <button class="prompt-btn" data-prompt="When is the best time to visit Nagaland for the Hornbill Festival?">🎉 Hornbill Festival</button>
+        <button class="prompt-btn" data-prompt="What should I do if I lose my wallet?">🆘 Lost Wallet Help</button>
+      </div>
+
+      <div id="inputArea">
+        <input id="userInput" type="text" placeholder="Type your message…">
+        <button id="sendBtn" class="glow-button px-6" data-i18n="send_btn">Send</button>
+      </div>
+    </div>
+    <a href="dashboard.html" class="glow-button back-button mt-8" data-i18n="back_button">
+      Back to Dashboard
+    </a>
+  </main>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+<script>
+// --- THEME SWITCHER LOGIC ---
+const themeSwitcher = document.getElementById('theme-switcher');
+themeSwitcher.addEventListener('click', () => {
+    document.body.classList.toggle('light-theme');
+    const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
+    localStorage.setItem('theme', currentTheme);
+});
+/* ---------------------------
+   Language System (Unchanged)
+---------------------------- */
+const translations = {
+  en: {
+    chat_title: "🤖 Ask Res-Q AI", placeholder: "Type your message…", send_btn: "Send",
+    back_button: "Back to Dashboard", greeting: "Hello — I am **Res-Q AI**, your India travel & emergency guide. How can I assist you today? Try one of the suggestions below!"
+  },
+  hi: {
+    chat_title: "🤖 रेस-क्यू एआई से पूछें", placeholder: "अपना संदेश लिखें…", send_btn: "भेजें",
+    back_button: "डैशबोर्ड पर वापस जाएं", greeting: "नमस्ते — मैं **रेस-क्यू एआई** हूँ, आपका भारत यात्रा और आपातकालीन मार्गदर्शक। आज मैं आपकी किस तरह सहायता कर सकता हूँ? नीचे दिए गए सुझावों में से एक प्रयास करें!"
+  },
+  as: {
+    chat_title: "🤖 ৰেছ-কিউ AIক সোধক", placeholder: "আপোনাৰ বাৰ্তা লিখক…", send_btn: "পঠিয়াওক",
+    back_button: "ডেশ্বব’ৰ্ডলৈ ঘূৰি যাওক", greeting: "নমস্কাৰ — মই **ৰেছ-কিউ AI**, আপোনাৰ ভাৰত ভ্ৰমণ আৰু আপৎকালীন গাইড। আপুনি আজি কেনেকৈ সহায় বিচাৰিছে? তলৰ পৰামৰ্শসমূহৰ এটা চেষ্টা কৰক!"
+  }
+};
+const langSwitcher = document.getElementById("languageSwitcher"); const userInputEl = document.getElementById("userInput");
+const sendBtnEl = document.getElementById("sendBtn"); const chatTitleEl = document.querySelector('[data-i18n="chat_title"]');
+const backButtonEl = document.querySelector('[data-i18n="back_button"]'); const messagesDiv = document.getElementById("messages");
+function setLanguage(lang) {
+  const t = translations[lang]; chatTitleEl.textContent = t.chat_title; userInputEl.placeholder = t.placeholder;
+  sendBtnEl.textContent = t.send_btn; backButtonEl.textContent = t.back_button; localStorage.setItem("lang", lang);
+  messagesDiv.innerHTML = ""; addMessage("bot", t.greeting);
+}
+langSwitcher.addEventListener("change", e => setLanguage(e.target.value));
+window.addEventListener("load", () => { const savedLang = localStorage.getItem("lang") || "en"; langSwitcher.value = savedLang; setLanguage(savedLang); });
+/* ---------------------------
+   Gemini chat logic (Now with Template Prompts!)
+---------------------------- */
+const GEMINI_API_KEY = "AIzaSyCJoiWlMq0JfpJqXhd-37MfKw3b1FIOg1k"; // REMEMBER TO USE YOUR OWN KEY
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+const inputBox = document.getElementById("userInput");
+document.getElementById("sendBtn").addEventListener("click", sendMessage);
+inputBox.addEventListener("keypress", e => { if (e.key === "Enter") sendMessage(); });
+
+document.getElementById("prompt-suggestions").addEventListener("click", (e) => {
+    if (e.target.classList.contains("prompt-btn")) {
+        const promptText = e.target.dataset.prompt;
+        inputBox.value = promptText;
+        sendMessage();
+    }
+});
+
+function addMessage(sender, text) {
+  const div = document.createElement("div"); div.className = sender;
+  div.innerHTML = sender === "bot" ? marked.parse(text) : `<strong>You:</strong> ${text}`;
+  messagesDiv.appendChild(div); messagesDiv.scrollTop = messagesDiv.scrollHeight;
+}
+async function sendMessage() {
+  const text = inputBox.value.trim(); if (!text) return;
+  addMessage("user", text); inputBox.value = ""; inputBox.disabled = true; sendBtnEl.disabled = true;
+  try {
+    const response = await fetch(`${GEMINI_URL}?key=${GEMINI_API_KEY}`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: `You are Res-Q AI, a comprehensive and friendly AI travel assistant for India. Your goal is to be exceptionally helpful, clear, and responsible.
+
+### Core Capabilities:
+
+1.  **Trip Planner & Itinerary Generator:**
+    * Create detailed, day-by-day travel itineraries based on user preferences (e.g., duration, budget, interests like adventure, history, relaxation).
+    * Suggest logical travel routes and modes of transport between cities (flights, trains, buses).
+
+2.  **Local Recommendations (Hotels, Restaurants, etc.):**
+    * Provide recommendations for hotels, restaurants, and attractions.
+    * When suggesting a place, you MUST format it as a compact block using single line breaks. Do not add extra "enter" spaces between the lines of a single recommendation.
+    * **Example of the required compact format:**
+        **Name:** The Taj Mahal Palace
+        **Type:** Luxury Hotel
+        **Why:** Iconic heritage hotel with stunning sea views.
+        **Search:** [Search on Google](https://www.google.com/search?q=The+Taj+Mahal+Palace+Mumbai)
+    * For each suggestion, you MUST provide these four points: Name, Type/Cuisine, Why it's recommended, and a Search Link.
+
+3.  **Medical & Safety Assistance (Two-Tiered Approach):**
+    * **Tier 1: IMMEDIATE EMERGENCY:** If the user mentions any immediate emergency (fire, medical crisis, accident, crime, getting lost), your VERY FIRST sentence MUST BE:
+        > 🚨 **Important:** For immediate help, use the **SOS button** in the Res-Q 112 dashboard to share your live location with authorities.
+    * **Tier 2: GENERAL MEDICAL/SAFETY QUERY:** For non-emergency questions (e.g., "I have a headache," "where can I find a pharmacy?"), provide helpful, practical information. However, you MUST ALWAYS include this disclaimer at the end of your response:
+        > **Disclaimer:** I am an AI assistant and not a medical professional. Please consult a doctor for any health concerns.
+
+### Formatting Rules:
+* You MUST respond in clear, well-structured Markdown. Use headings, bullet points, and bold text to make information easy to read.
+* If a question is completely unrelated to India (travel, safety, culture, food, planning), you MUST politely decline by stating your purpose. For example: "As Res-Q AI, my expertise is in helping with travel and safety within India. I can't assist with that request."` }] },
+        contents: [{ role: "user", parts: [{ text }] }],
+        generationConfig: { temperature: 0.7, maxOutputTokens: 1024 },
+      })
+    });
+    if (!response.ok) { throw new Error(`API Error: ${response.status} ${response.statusText}`); }
+    const data = await response.json();
+    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text || "Sorry, I could not process that request.";
+    addMessage("bot", reply);
+  } catch (error) {
+    console.error("Gemini API call failed:", error);
+    addMessage("bot", `Error: Could not connect to the AI service. ${error.message}`);
+  } finally { inputBox.disabled = false; sendBtnEl.disabled = false; inputBox.focus(); }
+}
+/* ---------------------------
+   Ripple Background Effect (Unchanged)
+---------------------------- */
+const canvas=document.getElementById("ripple-canvas"),ctx=canvas.getContext("2d");
+canvas.width=innerWidth;canvas.height=innerHeight;
+let ripples=[];
+class Ripple{constructor(x,y){this.x=x;this.y=y;this.radius=0;this.alpha=1;}
+update(){this.radius+=1.5;this.alpha-=0.01;}
+draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,2*Math.PI);
+ctx.strokeStyle=`rgba(0,255,255,${this.alpha})`;ctx.stroke();}}
+function animate(){ctx.clearRect(0,0,canvas.width,canvas.height);
+ripples.forEach((r,i)=>{r.update();r.draw();if(r.alpha<=0)ripples.splice(i,1);});
+requestAnimationFrame(animate);}
+animate();
+addEventListener("mousemove",e=>ripples.push(new Ripple(e.clientX,e.clientY)));
+addEventListener("resize",()=>{canvas.width=innerWidth;canvas.height=innerHeight});
+</script>
+</body>
+</html>

@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ResQ 112 - Interactive Globe</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Space+Grotesk:wght@400;600&display=swap" rel="stylesheet">
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+    <style>
+        :root {
+            --bg-color: #000000; 
+            --bg-image: none;
+            --globe-bg-color: #000000;
+            --text-color: #e0e0e0;
+            --text-color-light: #fff;
+            --text-highlight-glow: #00ffff;
+            --glow-button-text: #000;
+            --hr-color: rgba(0, 255, 255, 0.2);
+            --primary-font: 'Exo 2', sans-serif;
+            --secondary-font: 'Space Grotesk', sans-serif;
+        }
+        body.light-theme {
+            --bg-color: #eaf2f8;
+            --bg-image: radial-gradient(circle at 10% 10%, #ffffff 0%, #eaf2f8 80%);
+            --globe-bg-color: #f5f7fa;
+            --text-color: #34495e;
+            --text-color-light: #1c2833;
+            --text-highlight-glow: #0056b3;
+            --glow-button-text: #fff;
+            --hr-color: rgba(0, 86, 179, 0.2);
+        }
+        body {
+            font-family: var(--secondary-font);
+            margin: 0;
+            overflow: hidden;
+            background-color: var(--bg-color);
+            background-image: var(--bg-image);
+            transition: background-color 0.5s ease, background-image 0.5s ease;
+        }
+        #star-background-canvas {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            z-index: 1; transition: opacity 0.5s ease;
+        }
+        body.light-theme #star-background-canvas { opacity: 0; pointer-events: none; }
+        .main-container { display: flex; width: 100vw; height: 100vh; position: relative; z-index: 2; }
+        #scene-container {
+            flex-shrink: 0; flex-basis: 50%; height: 100%; position: relative;
+            background-color: var(--globe-bg-color);
+            transition: background-color 0.5s ease;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+        }
+        #scene-container canvas {
+            max-width: 100%;
+            max-height: 100%;
+        }
+        #focus-map {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: contain; opacity: 0; pointer-events: none; z-index: 5;
+            padding: 3rem; box-sizing: border-box;
+        }
+        .content-container {
+            flex-grow: 1; height: 100%; display: flex; flex-direction: column;
+            justify-content: center; padding: 2rem 4rem; box-sizing: border-box; background: transparent;
+        }
+        .logo-container {
+            position: absolute; top: 1.5rem; left: 2rem; z-index: 10; 
+            display: flex; align-items: center; gap: 0.75rem;
+        }
+        .logo-container img { height: 60px; width: 60px; } 
+        .logo-container span {
+            font-family: var(--secondary-font); font-weight: 700; font-size: 2rem;
+            color: var(--text-color-light);
+        }
+        nav { margin-bottom: 1rem; display: flex; align-items: center; }
+        nav a {
+            font-family: var(--primary-font); font-weight: 600; font-size: 1rem;
+            color: var(--text-color-light); text-decoration: none; margin-right: 2rem;
+            padding-bottom: 0.5rem; border-bottom: 2px solid transparent;
+            transition: color 0.3s, border-color 0.3s, text-shadow 0.3s; cursor: pointer;
+        }
+        nav a:hover, nav a.active {
+            color: var(--text-highlight-glow);
+            border-bottom-color: var(--text-highlight-glow);
+            text-shadow: 0 0 5px var(--text-highlight-glow);
+        }
+        .glow-button {
+            background-color: var(--text-highlight-glow); color: var(--glow-button-text);
+            font-weight: 700; padding: 0.75rem 1.5rem; border-radius: 5px; text-decoration: none;
+            display: inline-block; box-shadow: 0 0 8px var(--text-highlight-glow), 0 0 20px var(--text-highlight-glow);
+            transition: all 0.3s ease;
+        }
+        .glow-button:hover {
+            box-shadow: 0 0 15px var(--text-highlight-glow), 0 0 35px var(--text-highlight-glow);
+            transform: scale(1.05);
+        }
+        .login-button-container { margin-top: 3rem;  }
+        .content-section { display: none; color: var(--text-color); }
+        .content-section.visible { display: block; animation: fadeIn 0.8s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        h1, h2 { font-family: var(--primary-font); color: var(--text-color-light); }
+        h1 {
+            font-weight: 900; font-size: 3.5rem; line-height: 1.1; margin-bottom: 1rem;
+            text-shadow: 0 0 10px rgba(150,150,150,0.5);
+        }
+        h2 { font-weight: 700; font-size: 2.5rem; margin-bottom: 1rem; color: var(--text-highlight-glow); }
+        h1 .highlight { color: var(--text-highlight-glow); text-shadow: 0 0 10px var(--text-highlight-glow); }
+        #theme-switcher {
+            background: none; border: 1px solid var(--hr-color); border-radius: 50%; width: 40px; height: 40px;
+            cursor: pointer; display: flex; align-items: center; justify-content: center;
+            margin-left: auto; padding: 8px; color: var(--text-color-light);
+        }
+        #theme-switcher svg { width: 100%; height: 100%; }
+        .sun-icon { display: none; }
+        body.light-theme .moon-icon { display: none; }
+        body.light-theme .sun-icon { display: block; }
+        
+        /* Responsive styles for mobile */
+        @media (max-width: 768px) {
+            .main-container {
+                flex-direction: column;
+                position: relative; /* Establish stacking context */
+            }
+            #scene-container {
+                flex-basis: 40vh;
+                flex-direction: column;
+                justify-content: flex-start;
+            }
+            .content-container {
+                flex-basis: 60vh;
+                justify-content: flex-start;
+                padding: 1.5rem;
+                overflow-y: auto;
+                position: relative; /* Ensure it respects flex order */
+                z-index: 2; /* Explicitly place above scene container in stacking order */
+            }
+            .logo-container {
+                position: relative;
+                top: 0;
+                left: 0;
+                padding: 0.5rem 0; /* Reduced padding */
+                justify-content: center;
+                width: 100%;
+            }
+            h1 { font-size: 2.5rem; }
+            nav { flex-wrap: wrap; justify-content: center;}
+            nav a { margin: 0 0.75rem; font-size: 0.9rem;}
+            #theme-switcher { margin-left: 0.75rem; }
+        }
+    </style>
+    <script>
+        (function() {
+            const currentTheme = localStorage.getItem('theme');
+            if (currentTheme === 'light') { document.body.classList.add('light-theme'); }
+        })();
+    </script>
+</head>
+<body>
+    <canvas id="star-background-canvas"></canvas>
+    <div class="main-container">
+        <div id="scene-container">
+             <div class="logo-container">
+                <img src="logo.png.png" alt="ResQ 112 Logo" />
+                <span>ResQ 112</span>
+            </div>
+            <img src="indiamap.png.png" alt="Map of Northeast India" id="focus-map">
+        </div>
+        
+        <div class="content-container">
+            <nav>
+                <a class="nav-link active" data-target="home">Home</a>
+                <a class="nav-link" data-target="about">About</a>
+                <a class="nav-link" data-target="focus">Focus Area</a>
+                <a class="nav-link" data-target="features">Features</a>
+                <button id="theme-switcher" title="Toggle theme">
+                    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.591 1.59a.75.75 0 11-1.06-1.06l1.59-1.591a.75.75 0 011.06 0zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.894 17.894a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06zM12 21a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 21zM5.106 17.894a.75.75 0 010-1.06l1.591-1.59a.75.75 0 111.06 1.06l-1.59 1.591a.75.75 0 01-1.06 0zM3 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3.75A.75.75 0 013 12zM6.106 5.106a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06z"></path></svg>
+                    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-3.51 1.713-6.625 4.43-8.56a.75.75 0 01.818.162z" clip-rule="evenodd"></path></svg>
+                </button>
+            </nav>
+            <hr style="border-color: var(--hr-color); margin-bottom: 2rem; transition: border-color 0.5s ease;">
+            <main>
+                <section id="home" class="content-section visible">
+                    <h1>Secure Travels, <span class="highlight">Smart Protection.</span></h1>
+                    <p>Leveraging AI, Blockchain, and Geo-Fencing to create a safer, smarter travel experience for everyone, everywhere.</p>
+                </section>
+                <section id="about" class="content-section">
+                    <h2>Our Mission</h2>
+                    <p>ResQ 112 is dedicated to ensuring tourist safety across the globe through a synergistic blend of cutting-edge AI, immutable Blockchain records, and real-time geo-fenced monitoring.</p>
+                </section>
+                <section id="focus" class="content-section">
+                    <h2>The Challenge in High-Risk Areas</h2>
+                    <p>In regions like the Northeast, where tourism is a key economic driver, ensuring the safety of visitors is paramount. Traditional policing and manual tracking methods are insufficient in remote and high-risk areas. There is a pressing need for a smart, technology-driven solution that ensures real-time monitoring and rapid response.</p>
+                </section>
+                <section id="features" class="content-section">
+                    <h2>Core Technologies</h2>
+                    <p>Our platform is built on three pillars: Artificial Intelligence for threat prediction, Blockchain for secure data, and Geo-Fencing for real-time location-based alerts.</p>
+                </section>
+                <div class="login-button-container">
+                    <a href="login.html" class="glow-button">Login / Sign Up</a>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script type="module">
+        let globeScene, globeCamera, globeRenderer, earthModel, atmosphere;
+        const globeContainer = document.getElementById('scene-container');
+        let focusMap, globeCanvas;
+        function initGlobeScene() {
+            globeScene = new THREE.Scene();
+            globeCamera = new THREE.PerspectiveCamera(50, globeContainer.clientWidth / globeContainer.clientHeight, 0.1, 1000);
+            globeCamera.position.set(0, 0, 4);
+            globeCanvas = document.createElement('canvas');
+            globeContainer.appendChild(globeCanvas);
+            globeRenderer = new THREE.WebGLRenderer({ canvas: globeCanvas, antialias: true, alpha: true });
+            globeRenderer.setSize(globeContainer.clientWidth, globeContainer.clientHeight);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+            globeScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
+            directionalLight.position.set(-5, 3, 5);
+            globeScene.add(directionalLight);
+            const atmosphereGeometry = new THREE.SphereGeometry(1, 64, 64);
+            const atmosphereMaterial = new THREE.MeshBasicMaterial({ color: 0xadd8e6, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending });
+            atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+            globeScene.add(atmosphere);
+            const loader = new THREE.GLTFLoader();
+            loader.load('earth.glb', (gltf) => {
+                earthModel = gltf.scene;
+                earthModel.scale.set(0.01, 0.01, 0.01);
+                globeScene.add(earthModel);
+                atmosphere.scale.set(0.0105, 0.0105, 0.0105);
+            });
+        }
+        let starScene, starCamera, starRenderer, stars;
+        const starCanvas = document.getElementById('star-background-canvas');
+        function initStarScene() {
+            starScene = new THREE.Scene();
+            starCamera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            starCamera.position.z = 5;
+            starRenderer = new THREE.WebGLRenderer({ canvas: starCanvas, antialias: true, alpha: true });
+            starRenderer.setSize(window.innerWidth, window.innerHeight);
+            const starTexture = new THREE.TextureLoader().load('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAABHNCSVQICAgIfAhkiAAAAAlwSFlzAAAApgAAAKYB3X3/OAAAABl0RVh0U29mdHdhcmUAd3d3Lmlua3NjYXBlLm9yZ5vuPBoAAAFGSURBVFiF7dexSsNQFEDwZ0hQG4toYy2CvYRg8Qe0sVDs1Z2FrxJ/gD+kg4jgE/iB4E/Y2llE2yA2tvYJssu4mGj8IIYg+CY788bce98HcScG2oV2Uhv34b07wZ86fA28BF5VlWkATwCHwF3gG/C0qb8r4ApwC7wA3gEHwAXgGfCpqgfwKPCUqgF8BF4Cj4BdwANwDTgAvgK3gevAsqq+g14C/wHvgS/A64HKDqgHwGPgVlU/geuA+gB8AbwLPAASADwADgGHgGfA44BvgHOADMBDAAcAs74F0gKMBK4BfwCLgI/AVGAi0A/gK3AWOA7MBS4ADgG7gZvAM+AycBA4A9wCDgG/gGfAJ+AD8An4AEwBnoCnwAvgQzADfAEOAV+Ay8Bp4DZwGfgL/ARuBq4DA4E5wA/gL/A/gA3gK/AXuBG4C5wD/gBfBf6A/zYDKwPd358GfAFaMdwuC4KyoQAAAABJRU5ErkJggg==');
+            const positions = [];
+            for (let i = 0; i < 10000; i++) { positions.push((Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200, (Math.random() - 0.5) * 200); }
+            const starGeo = new THREE.BufferGeometry();
+            starGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            const starMat = new THREE.PointsMaterial({ size: 0.05, map: starTexture, transparent: true, opacity: 0.3, alphaTest: 0.5 });
+            stars = new THREE.Points(starGeo, starMat);
+            starScene.add(stars);
+        }
+        const contentSections = document.querySelectorAll('.content-section');
+        const navLinks = document.querySelectorAll('.nav-link');
+        function navigateTo(targetId) {
+            contentSections.forEach(s => s.classList.toggle('visible', s.id === targetId));
+            navLinks.forEach(l => l.classList.toggle('active', l.getAttribute('data-target') === targetId));
+            if (!globeCanvas) return;
+            if (targetId === 'focus') {
+                gsap.to(globeCanvas, { opacity: 0, duration: 0.5 });
+                gsap.to(focusMap, { opacity: 1, duration: 0.5 });
+            } else {
+                gsap.to(globeCanvas, { opacity: 1, duration: 0.5 });
+                gsap.to(focusMap, { opacity: 0, duration: 0.5 });
+            }
+        }
+        function onWindowResize() {
+            if (globeContainer.clientWidth > 0 && globeContainer.clientHeight > 0) {
+                globeCamera.aspect = globeContainer.clientWidth / globeContainer.clientHeight;
+                globeCamera.updateProjectionMatrix();
+                globeRenderer.setSize(globeContainer.clientWidth, globeContainer.clientHeight);
+            }
+            if (starCanvas.clientWidth > 0 && starCanvas.clientHeight > 0) {
+                starCamera.aspect = window.innerWidth / window.innerHeight;
+                starCamera.updateProjectionMatrix();
+                starRenderer.setSize(window.innerWidth, window.innerHeight);
+            }
+        }
+        function animate() {
+            requestAnimationFrame(animate);
+            if (earthModel) { earthModel.rotation.y += 0.001; }
+            if (atmosphere && earthModel) { atmosphere.rotation.copy(earthModel.rotation); }
+            globeRenderer.render(globeScene, globeCamera);
+            if (stars) { stars.rotation.y += 0.0001; }
+            starRenderer.render(starScene, starCamera);
+        }
+        const themeSwitcher = document.getElementById('theme-switcher');
+        themeSwitcher.addEventListener('click', () => {
+            document.body.classList.toggle('light-theme');
+            const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
+            localStorage.setItem('theme', currentTheme);
+        });
+        initGlobeScene();
+        initStarScene();
+        focusMap = document.getElementById('focus-map');
+        window.addEventListener('resize', onWindowResize);
+        navLinks.forEach(link => {
+            link.addEventListener('click', (e) => navigateTo(e.currentTarget.getAttribute('data-target')));
+        });
+        animate();
+    </script>
+</body>
+</html>

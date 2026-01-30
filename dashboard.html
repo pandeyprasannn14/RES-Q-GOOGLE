@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>ResQ 112 - Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
+  
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+        --bg-color: #000000;
+        --text-color: #e0e0e0;
+        --text-color-light: #fff;
+        --text-highlight-glow: #00ffff;
+        --glass-card-bg: rgba(255,255,255,0.05);
+        --glass-card-border: rgba(255,255,255,0.1);
+        --header-bg: rgba(0,0,0,0.3);
+        --primary-font: 'Exo 2', sans-serif;
+        --secondary-font: 'Space Grotesk', sans-serif;
+    }
+    body.light-theme {
+        --bg-color: #eaf2f8;
+        --text-color: #34495e;
+        --text-color-light: #1c2833;
+        --text-highlight-glow: #0056b3;
+        --glass-card-bg: rgba(255,255,255,0.6);
+        --glass-card-border: rgba(255,255,255,0.8);
+        --header-bg: rgba(255,255,255,0.2);
+    }
+    body {
+        font-family: var(--secondary-font);
+        background-color: var(--bg-color);
+        color: var(--text-color);
+        transition: background-color 0.5s ease, color 0.5s ease;
+    }
+    #ripple-canvas {
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
+    }
+    .content-overlay {
+        position: relative; z-index: 2; min-height: 100vh;
+    }
+    header { background-color: var(--header-bg); }
+    .logo-container span {
+        font-family: var(--secondary-font);
+        color: var(--text-color-light);
+    }
+    .glass-card {
+        background: var(--glass-card-bg); backdrop-filter:blur(10px); border:1px solid var(--glass-card-border);
+        color: var(--text-color); transition:all .3s ease;
+    }
+    .glass-card:hover { box-shadow:0 0 10px var(--text-highlight-glow),0 0 25px var(--text-highlight-glow); }
+    .glass-card h3 { color: var(--text-color-light); }
+    #theme-switcher {
+        background: none; border: 1px solid var(--glass-card-border); border-radius: 50%;
+        width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center;
+        justify-content: center; padding: 8px; color: var(--text-color-light);
+    }
+    .sun-icon { display: none; }
+    body.light-theme .moon-icon { display: none; }
+    body.light-theme .sun-icon { display: block; }
+    .sos-button {
+        background: radial-gradient(circle at 35% 35%, rgba(255, 120, 120, 0.8), rgba(220, 20, 60, 0.7) 70%);
+        border: 2px solid rgba(255, 255, 255, 0.15);
+        text-shadow: 0 0 5px rgba(0,0,0,0.5);
+    }
+    .sos-button:hover{box-shadow:0 0 15px #ff0000,0 0 35px #ff0000;}
+    .sos-active { animation: sosPulse 1.6s infinite; box-shadow: 0 0 20px #ff3b3b, 0 0 45px #ff3b3b; }
+    @keyframes sosPulse {
+      0% { box-shadow: 0 0 10px #ff3b3b; transform: scale(1); }
+      50% { box-shadow: 0 0 30px #ff3b3b; transform: scale(1.02); }
+      100% { box-shadow: 0 0 10px #ff3b3b; transform: scale(1); }
+    }
+    .sos-status { margin-top:8px; color:#ffb3b3; font-weight:600; text-align:center; }
+    .glow-button:hover{box-shadow:0 0 10px var(--text-highlight-glow),0 0 25px var(--text-highlight-glow);}
+
+    /* **NEW:** Styles for the Live Support Button */
+    #live-support-button {
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        background-color: var(--text-highlight-glow);
+        color: var(--text-color-light);
+        border-radius: 9999px;
+        padding: 0.75rem;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        cursor: pointer;
+        transition: all 0.3s ease-in-out;
+        text-decoration: none;
+    }
+    #live-support-button .icon {
+        width: 32px;
+        height: 32px;
+        flex-shrink: 0;
+    }
+    #live-support-button .text {
+        white-space: nowrap;
+        overflow: hidden;
+        max-width: 0;
+        transition: max-width 0.3s ease-in-out, margin-left 0.3s ease-in-out;
+        font-weight: 600;
+    }
+    #live-support-button:hover .text {
+        max-width: 200px; /* Reveal text */
+        margin-left: 0.75rem;
+    }
+  </style>
+  <script>
+    (function() {
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'light') { document.body.classList.add('light-theme'); }
+    })();
+  </script>
+</head>
+<body>
+<canvas id="ripple-canvas"></canvas>
+
+<div class="content-overlay flex flex-col min-h-screen">
+  <header class="p-4 flex justify-between items-center">
+    <div class="flex items-center space-x-4 logo-container">
+      <img src="logo.png.png" alt="logo" class="h-12 w-12"/>
+      <span class="text-2xl font-bold">ResQ 112</span>
+    </div>
+    <div class="flex items-center gap-4">
+        <select id="languageSwitcher" class="bg-black/50 text-white p-2 rounded border border-gray-700">
+            <option value="en">English</option>
+            <option value="hi">हिन्दी</option>
+            <option value="as">অসমীয়া</option>
+        </select>
+        <button id="theme-switcher" title="Toggle theme">
+            <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.591 1.59a.75.75 0 11-1.06-1.06l1.59-1.591a.75.75 0 011.06 0zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.894 17.894a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06zM12 21a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 21zM5.106 17.894a.75.75 0 010-1.06l1.591-1.59a.75.75 0 111.06 1.06l-1.59 1.591a.75.75 0 01-1.06 0zM3 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3.75A.75.75 0 013 12zM6.106 5.106a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06z"></path></svg>
+            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-3.51 1.713-6.625 4.43-8.56a.75.75 0 01.818.162z" clip-rule="evenodd"></path></svg>
+        </button>
+    </div>
+  </header>
+
+  <div class="flex justify-center mt-8">
+    <button id="sosBtn" class="w-40 h-40 text-white text-2xl font-bold rounded-full sos-button flex items-center justify-center"></button>
+  </div>
+  <div class="flex justify-center mt-4">
+    <button id="stopBtn" class="px-6 py-2 bg-gray-600 text-white rounded-lg glow-button hidden"></button>
+  </div>
+  <div id="sosKeyLabel" class="flex justify-center"><div class="sos-status" id="sosKeyText"></div></div>
+
+  <main class="container mx-auto px-4 mt-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pb-8">
+    <a href="profile.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="profile_title">👤 Profile</h3>
+      <p data-i18n="profile_desc">View and update your details.</p>
+    </a>
+    <a href="wearable.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="wearable_title">⌚ Wearable & Emergency Contacts</h3>
+      <p data-i18n="wearable_desc">Connect devices and manage your emergency numbers.</p>
+    </a>
+    <a href="map.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="map_title">🗺️ Map</h3>
+      <p data-i18n="map_desc">Track your location and nearby safe zones.</p>
+    </a>
+    <a href="openfir.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="contacts_title">⚖️ File an FIR</h3>
+      <p data-i18n="contacts_desc">File a First Information Report online.</p>
+    </a>
+    <a href="askai.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="askai_title">🤖 Ask AI</h3>
+      <p data-i18n="askai_desc">Get real-time AI assistance.</p>
+    </a>
+    <a href="incident-response.html" class="glass-card p-6 rounded-xl">
+      <h3 class="text-xl font-bold mb-2" data-i18n="support_title">🚨 Incident Response System using AI</h3>
+      <p data-i18n="support_desc">AI-powered analysis and response for incidents.</p>
+    </a>
+  </main>
+</div>
+
+<a id="live-support-button" href="contact.html">
+    <span class="text">Live Contact Support</span>
+    <span class="icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor">
+            <path fill-rule="evenodd" d="M4.848 2.771A49.144 49.144 0 0112 2.25c2.43 0 4.817.178 7.152.52 1.978.292 3.348 2.024 3.348 3.97v6.023c0 1.946-1.37 3.678-3.348 3.97a48.901 48.901 0 01-3.476.383.39.39 0 00-.297.17l-2.755 4.133a.75.75 0 01-1.248 0l-2.755-4.133a.39.39 0 00-.297-.17 48.9 48.9 0 01-3.476-.384c-1.978-.29-3.348-2.024-3.348-3.97V6.741c0-1.946 1.37-3.68 3.348-3.97zM6.75 8.25a.75.75 0 01.75-.75h9a.75.75 0 010 1.5h-9a.75.75 0 01-.75-.75zm.75 2.25a.75.75 0 000 1.5H12a.75.75 0 000-1.5H7.5z" clip-rule="evenodd" />
+        </svg>
+    </span>
+</a>
+
+<audio id="sosAudio" src="sos.mp3" loop preload="auto"></audio>
+
+<script>
+    // --- THEME SWITCHER LOGIC ---
+    const themeSwitcher = document.getElementById('theme-switcher');
+    themeSwitcher.addEventListener('click', () => {
+        document.body.classList.toggle('light-theme');
+        const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
+        localStorage.setItem('theme', currentTheme);
+    });
+
+    // --- DASHBOARD & FIREBASE LOGIC (UNCHANGED) ---
+    const firebaseConfig={ apiKey:"AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4", authDomain:"sos-c1499.firebaseapp.com", databaseURL:"https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app", projectId:"sos-c1499", storageBucket:"sos-c1499.appspot.com", messagingSenderId:"1008729495848", appId:"1:1008729495848:web:7d6c7d3a6047e2736e981d", measurementId:"G-JGBY3ZZPGC" };
+    firebase.initializeApp(firebaseConfig);
+    const db=firebase.database();
+    const sosBtn=document.getElementById("sosBtn"), stopBtn=document.getElementById("stopBtn"), sosAudio=document.getElementById("sosAudio"), sosKeyText=document.getElementById("sosKeyText");
+    let currentSosKey = null, watchId = null;
+    function getUserInfo() { const name = localStorage.getItem("userName") || "Unknown"; const id = localStorage.getItem("userId") || "unknown"; return { name, id }; }
+    async function startSOS() {
+        sosBtn.classList.add("hidden"); stopBtn.classList.remove("hidden"); sosBtn.classList.add("sos-active");
+        try { sosAudio.currentTime = 0; await sosAudio.play(); } catch (err) { console.warn("Audio play blocked:", err); }
+        if (!navigator.geolocation) { alert("Geolocation not available."); return; }
+        const user = getUserInfo();
+        navigator.geolocation.getCurrentPosition(async (pos) => {
+            try {
+                const refPush = db.ref('sos').push(); currentSosKey = refPush.key; localStorage.setItem('currentSosKey', currentSosKey);
+                const payload = { userId: user.id, name: user.name, lat: pos.coords.latitude, lng: pos.coords.longitude, timestamp: Date.now(), status: "active" };
+                await refPush.set(payload); sosKeyText.innerText = `Active SOS: ${currentSosKey}`;
+            } catch (err) { console.error("Failed to create SOS:", err); }
+            watchId = navigator.geolocation.watchPosition((p) => {
+                if (!currentSosKey) return;
+                db.ref('sos/' + currentSosKey).update({ lat: p.coords.latitude, lng: p.coords.longitude, timestamp: Date.now() });
+            });
+        }, (err) => { alert("Could not get location: " + err.message); });
+    }
+    async function stopSOS() {
+        sosBtn.classList.remove("hidden"); stopBtn.classList.add("hidden"); sosBtn.classList.remove("sos-active"); sosKeyText.innerText = "";
+        try { sosAudio.pause(); sosAudio.currentTime = 0; } catch (err) { console.warn("Failed to stop audio:", err); }
+        if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+        const key = currentSosKey || localStorage.getItem('currentSosKey');
+        if (!key) { return; }
+        try {
+            const snap = await db.ref('sos/' + key).once('value'); const data = snap.val(); if (!data) { return; }
+            data.stoppedAt = Date.now(); data.status = "archived";
+            await db.ref('archived_sos/' + key).set(data); await db.ref('sos/' + key).remove();
+            currentSosKey = null; localStorage.removeItem('currentSosKey'); alert("SOS stopped and archived.");
+        } catch (err) { console.error("Error archiving SOS:", err); }
+    }
+    sosBtn.addEventListener("click", startSOS); stopBtn.addEventListener("click", stopSOS);
+    const translations={ en:{ sos_btn:"SOS", stop_btn:"Stop SOS", profile_title:"👤 Profile", profile_desc:"View and update your details.", wearable_title:"⌚ Wearable & Emergency Contacts", wearable_desc:"Connect devices and manage your emergency numbers.", map_title:"🗺️ Map", map_desc:"Track your location and nearby safe zones.", contacts_title:"⚖️ File an FIR", contacts_desc:"File a First Information Report online.", askai_title:"🤖 Ask AI", askai_desc:"Get real-time AI assistance.", support_title:"🚨 Incident Response System using AI", support_desc:"AI-powered analysis and response for incidents." }, hi:{ sos_btn:"एसओएस", stop_btn:"एसओएस रोकें", profile_title:"👤 प्रोफ़ाइल", profile_desc:"अपनी जानकारी देखें और अपडेट करें।", wearable_title:"⌚ वियरेबल और आपातकालीन संपर्क", wearable_desc:"अपने वियरेबल उपकरण और आपातकालीन नंबर प्रबंधित करें।", map_title:"🗺️ नक्शा", map_desc:"अपना स्थान और पास के सुरक्षित क्षेत्र ट्रैक करें।", contacts_title:"⚖️ एफआईआर दर्ज करें", contacts_desc:"ऑनलाइन प्रथम सूचना रिपोर्ट दर्ज करें।", askai_title:"🤖 एआई से पूछें", askai_desc:"रियल-टाइम एआई सहायता प्राप्त करें।", support_title:"🚨 एआई का उपयोग कर घटना प्रतिक्रिया प्रणाली", support_desc:"घटनाओं के लिए एआई-संचालित विश्लेषण और प्रतिक्रिया।" }, as:{ sos_btn:"এসওএছ", stop_btn:"এসওএছ বন্ধ কৰক", profile_title:"👤 প্ৰ’ফাইল", profile_desc:"আপোনাৰ তথ্য চাওক আৰু আপডেট কৰক।", wearable_title:"⌚ পৰিধানযোগ্য আৰু জরুৰী যোগাযোগ", wearable_desc:"আপোনাৰ পৰিধানযোগ্য ডিভাইচ আৰু জরুৰী নম্বৰ ব্যৱস্থাপনা কৰক।", map_title:"🗺️ মানচিত্ৰ", map_desc:"আপোনাৰ অৱস্থান আৰু ওচৰৰ সুৰক্ষিত এলাকা অনুসৰণ কৰক।", contacts_title:"⚖️ এজাহাৰ দাখিল কৰক", contacts_desc:"অনলাইনত প্ৰথম তথ্য প্ৰতিবেদন দাখিল কৰক।", askai_title:"🤖 এআইক প্ৰশ্ন কৰক", askai_desc:"ৰিয়েল-টাইম এআই সহায় প্ৰাপ্ত কৰক।", support_title:"🚨 এআই ব্যৱহাৰ কৰি ঘটনা সঁহাৰি প্ৰণালী", support_desc:"घटनाৰ বাবে এআই-চালিত বিশ্লেষণ আৰু সঁহাৰি।" } };
+    const switcher=document.getElementById("languageSwitcher");
+    function updateLanguage(lang){
+        localStorage.setItem("lang",lang);
+        document.querySelectorAll("[data-i18n]").forEach(el=>{ const key=el.getAttribute("data-i18n"); if(translations[lang]?.[key]){ el.innerText=translations[lang][key]; } });
+        sosBtn.innerText=translations[lang].sos_btn; stopBtn.innerText=translations[lang].stop_btn;
+    }
+    switcher.addEventListener("change",e=>updateLanguage(e.target.value));
+    window.addEventListener("load",()=>{
+        const existing = localStorage.getItem('currentSosKey');
+        if (existing) {
+            currentSosKey = existing; sosKeyText.innerText = `Active SOS: ${currentSosKey}`;
+            sosBtn.classList.add("hidden"); stopBtn.classList.remove("hidden"); sosBtn.classList.add("sos-active");
+        }
+        const savedLang=localStorage.getItem("lang")||"en";
+        switcher.value=savedLang; updateLanguage(savedLang);
+    });
+
+    // --- RIPPLE BACKGROUND EFFECT ---
+    const canvas=document.getElementById("ripple-canvas"),ctx=canvas.getContext("2d");
+    canvas.width=innerWidth;canvas.height=innerHeight;
+    let ripples=[];
+    class Ripple{constructor(x,y){this.x=x;this.y=y;this.radius=0;this.alpha=1;}
+    update(){this.radius+=1.5;this.alpha-=0.01;}
+    draw(){ctx.beginPath();ctx.arc(this.x,this.y,this.radius,0,2*Math.PI);
+    ctx.strokeStyle=`rgba(0,255,255,${this.alpha})`;ctx.stroke();}}
+    function animate(){ctx.clearRect(0,0,canvas.width,canvas.height);
+    ripples.forEach((r,i)=>{r.update();r.draw();if(r.alpha<=0)ripples.splice(i,1);});
+    requestAnimationFrame(animate);}
+    animate();
+    addEventListener("mousemove",e=>ripples.push(new Ripple(e.clientX,e.clientY)));
+    addEventListener("resize",()=>{canvas.width=innerWidth;canvas.height=innerHeight});
+</script>
+</body>
+</html>

@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ResQ 112 - Login</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
+  
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+  
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/loaders/GLTFLoader.js"></script>
+
+  <style>
+    :root {
+        --bg-color: #000000;
+        --globe-bg-color: #000000;
+        --text-color: #e0e0e0;
+        --text-color-light: #fff;
+        --text-highlight-glow: #00ffff;
+        --glow-button-text: #000;
+        --primary-font: 'Exo 2', sans-serif;
+        --secondary-font: 'Space Grotesk', sans-serif;
+    }
+    body.light-theme {
+        --bg-color: #eaf2f8;
+        --globe-bg-color: #f5f7fa;
+        --text-color: #34495e;
+        --text-color-light: #1c2833;
+        --text-highlight-glow: #0056b3;
+        --glow-button-text: #fff;
+    }
+    body {
+        font-family: var(--secondary-font);
+        margin: 0;
+        overflow: hidden;
+        background-color: var(--bg-color);
+        color: var(--text-color);
+    }
+    .main-container { display: flex; width: 100vw; height: 100vh; position: relative; }
+    #scene-container { flex: 0 0 50%; height: 100%; position: relative; background-color: var(--globe-bg-color); }
+    .content-container { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: center; padding: 2rem 4rem; box-sizing: border-box; position: relative; }
+    .logo-container { position: absolute; top: 1.5rem; left: 2rem; z-index: 3; display: flex; align-items: center; gap: 0.75rem; }
+    .logo-container img { height: 60px; width: 60px; } 
+    .logo-container span { font-family: var(--secondary-font); font-weight: 700; font-size: 2rem; color: var(--text-color-light); }
+    .glow-button { background-color: var(--text-highlight-glow); color: var(--glow-button-text); font-weight: 700; box-shadow:0 0 8px var(--text-highlight-glow),0 0 20px var(--text-highlight-glow); transition:all .3s ease }
+    .glow-button:hover { box-shadow:0 0 15px var(--text-highlight-glow),0 0 35px var(--text-highlight-glow); transform: scale(1.05); }
+    #theme-switcher { position: absolute; top: 1.5rem; right: 2rem; background: none; border: 1px solid var(--hr-color); border-radius: 50%; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; color: var(--text-color-light); z-index: 10; }
+    #theme-switcher svg { width: 100%; height: 100%; }
+    .sun-icon { display: none; }
+    body.light-theme .moon-icon { display: none; }
+    body.light-theme .sun-icon { display: block; }
+    @media (max-width: 768px) {
+        .main-container { flex-direction: column; }
+        #scene-container { flex-basis: 40vh; }
+        .content-container { flex-basis: 60vh; justify-content: flex-start; padding: 1.5rem; overflow-y: auto; }
+        .content-container main h2 { font-size: 2rem; margin-top: 1rem; }
+    }
+  </style>
+  <script>
+    (function() {
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'light') { document.body.classList.add('light-theme'); }
+    })();
+  </script>
+</head>
+<body>
+    <div class="main-container">
+        <div id="scene-container">
+             <div class="logo-container">
+                <img src="logo.png.png" alt="ResQ 112 Logo" />
+                <span>ResQ 112</span>
+            </div>
+        </div>
+        
+        <div class="content-container">
+            <button id="theme-switcher" title="Toggle theme">
+                <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.591 1.59a.75.75 0 11-1.06-1.06l1.59-1.591a.75.75 0 011.06 0zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.894 17.894a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06zM12 21a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 21zM5.106 17.894a.75.75 0 010-1.06l1.591-1.59a.75.75 0 111.06 1.06l-1.59 1.591a.75.75 0 01-1.06 0zM3 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3.75A.75.75 0 013 12zM6.106 5.106a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06z"></path></svg>
+                <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-3.51 1.713-6.625 4.43-8.56a.75.75 0 01.818.162z" clip-rule="evenodd"></path></svg>
+            </button>
+            <main class="w-full max-w-md mx-auto">
+                <h2 class="text-4xl font-bold mb-8 text-center" style="font-family: var(--primary-font); color: var(--text-color-light);">
+                    Identity Verification
+                </h2>
+                <form id="login-form" class="space-y-4">
+                    <div id="step1">
+                        <input id="fullName" type="text" placeholder="Enter Full Name"
+                            class="w-full p-3 rounded-lg bg-black/40 text-white text-center mb-4 border border-gray-700 focus:border-cyan-500 focus:ring-0 outline-none"/>
+                        <select id="method" class="w-full p-3 rounded-lg bg-black/40 text-white text-center border border-gray-700 focus:border-cyan-500 focus:ring-0 outline-none">
+                            <option disabled selected>Select Verification Method</option>
+                            <option value="aadhaar">Aadhaar Number</option>
+                            <option value="passport">Passport Number</option>
+                        </select>
+                        <button type="button" onclick="proceedToNextStep()" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-lg glow-button mt-4">Next</button>
+                    </div>
+
+                    <div id="step1_5" class="hidden">
+                        <input id="whatsappNumber" type="tel" placeholder="Enter Your WhatsApp Number"
+                            class="w-full p-3 rounded-lg bg-black/40 text-white text-center mb-4 border border-gray-700 focus:border-cyan-500 focus:ring-0 outline-none"/>
+                        <button type="button" onclick="nextStep('2')" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-lg glow-button mt-4">Next</button>
+                    </div>
+
+                    <div id="step2" class="hidden">
+                        <input id="idNumber" type="text" placeholder="Enter ID Number"
+                            class="w-full p-3 rounded-lg bg-black/40 text-white text-center border border-gray-700 focus:border-cyan-500 focus:ring-0 outline-none"/>
+                        <button type="button" onclick="nextStep('3')" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-lg glow-button mt-4">Send OTP</button>
+                    </div>
+
+                    <div id="step3" class="hidden">
+                        <input id="otpInput" type="text" placeholder="Enter OTP"
+                            class="w-full p-3 rounded-lg bg-black/40 text-white text-center border border-gray-700 focus:border-cyan-500 focus:ring-0 outline-none"/>
+                        <button type="submit" class="w-full bg-cyan-500 text-black font-bold py-3 rounded-lg glow-button mt-4">Get Your Unique Blockchain ID</button>
+                    </div>
+                </form>
+            </main>
+        </div>
+    </div>
+
+    <script type="module">
+        // Three.js globe code
+        let globeScene, globeCamera, globeRenderer, earthModel, atmosphere;
+        const globeContainer = document.getElementById('scene-container');
+        function initGlobeScene() {
+            globeScene = new THREE.Scene();
+            globeCamera = new THREE.PerspectiveCamera(50, globeContainer.clientWidth / globeContainer.clientHeight, 0.1, 1000);
+            globeCamera.position.set(0, 0, 4);
+            const globeCanvas = document.createElement('canvas');
+            globeContainer.appendChild(globeCanvas);
+            globeRenderer = new THREE.WebGLRenderer({ canvas: globeCanvas, antialias: true, alpha: true });
+            globeRenderer.setSize(globeContainer.clientWidth, globeContainer.clientHeight);
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.2);
+            globeScene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 3.0);
+            directionalLight.position.set(-5, 3, 5);
+            globeScene.add(directionalLight);
+            const atmosphereGeometry = new THREE.SphereGeometry(1, 64, 64);
+            const atmosphereMaterial = new THREE.MeshBasicMaterial({ color: 0xadd8e6, transparent: true, opacity: 0.15, blending: THREE.AdditiveBlending });
+            atmosphere = new THREE.Mesh(atmosphereGeometry, atmosphereMaterial);
+            globeScene.add(atmosphere);
+            const loader = new THREE.GLTFLoader();
+            loader.load('earth.glb', (gltf) => {
+                earthModel = gltf.scene;
+                earthModel.scale.set(0.01, 0.01, 0.01);
+                globeScene.add(earthModel);
+                atmosphere.scale.set(0.0105, 0.0105, 0.0105);
+            });
+        }
+        function onWindowResize() { if (globeContainer.clientWidth > 0) { globeCamera.aspect = globeContainer.clientWidth / globeContainer.clientHeight; globeCamera.updateProjectionMatrix(); globeRenderer.setSize(globeContainer.clientWidth, globeContainer.clientHeight); } }
+        function animate() { requestAnimationFrame(animate); if (earthModel) { earthModel.rotation.y += 0.001; atmosphere.rotation.y += 0.001; } globeRenderer.render(globeScene, globeCamera); }
+        const themeSwitcher = document.getElementById('theme-switcher');
+        themeSwitcher.addEventListener('click', () => { document.body.classList.toggle('light-theme'); const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark'; localStorage.setItem('theme', currentTheme); });
+
+        // --- NEW FIREBASE CONFIGURATION (INTEGRATED) ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyAzwiwp0ByoUkofWPJG1Ux8BY8ueCDwVjM",
+            authDomain: "geo-fencing-202f9.firebaseapp.com",
+            databaseURL: "https://geo-fencing-202f9-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "geo-fencing-202f9",
+            storageBucket: "geo-fencing-202f9.firebasestorage.app",
+            messagingSenderId: "815479242725",
+            appId: "1:815479242725:web:0eaae779912a495b94f90c",
+            measurementId: "G-WB7LFFPT4D"
+        };
+        
+        // Initialize Firebase (Compat)
+        if (!window.firebase.apps.length) {
+            window.firebase.initializeApp(firebaseConfig);
+        }
+        const db = window.firebase.database();
+
+        // Form navigation logic
+        window.nextStep = function(step) {
+            document.querySelectorAll('#login-form > div').forEach(d => d.classList.add('hidden'));
+            document.getElementById(`step${step}`).classList.remove('hidden');
+        }
+
+        window.proceedToNextStep = function() {
+            const method = document.getElementById("method").value;
+            const idNumberInput = document.getElementById("idNumber");
+            const otpInput = document.getElementById("otpInput");
+
+            if (!method) {
+                alert("Please select a verification method.");
+                return;
+            }
+
+            if (method === 'passport') {
+                idNumberInput.placeholder = "Enter Passport Number";
+                otpInput.placeholder = "Enter OTP received on WhatsApp";
+                nextStep('1_5');
+            } else { // 'aadhaar'
+                idNumberInput.placeholder = "Enter Aadhaar Number";
+                otpInput.placeholder = "Enter OTP";
+                nextStep('2');
+            }
+        }
+
+        // Form submission logic
+        document.getElementById("login-form").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            submitButton.disabled = true;
+            submitButton.textContent = "Processing...";
+
+            const name = document.getElementById("fullName").value;
+            const method = document.getElementById("method").value;
+            const rawId = document.getElementById("idNumber").value;
+            const whatsapp = document.getElementById("whatsappNumber").value;
+
+            if (!name || !method || !rawId) {
+                alert("Please fill all fields");
+                submitButton.disabled = false;
+                submitButton.textContent = "Get Your Unique Blockchain ID";
+                return;
+            }
+            
+            // Clean ID for Database Key (Remove . # $ [ ] /)
+            const safeId = rawId.replace(/[.#$\[\]\/]/g, "-").trim();
+
+            if(safeId.length === 0) {
+                 alert("Invalid ID Number format. Please try again.");
+                 submitButton.disabled = false;
+                 submitButton.textContent = "Get Your Unique Blockchain ID";
+                 return;
+            }
+
+            const blockchainId = "BCID-" + Math.random().toString(36).substring(2, 10).toUpperCase();
+            
+            try {
+                const userData = { 
+                    name, 
+                    method, 
+                    id: rawId,
+                    blockchainId, 
+                    updatedAt: Date.now() 
+                };
+
+                if (method === 'passport' && whatsapp) {
+                    userData.whatsapp = whatsapp;
+                }
+
+                await db.ref("users/" + safeId).set(userData);
+
+                localStorage.setItem("userId", safeId);
+                window.location.href = "dashboard.html";
+
+            } catch (error) {
+                console.error("Firebase write failed:", error);
+                
+                let errorMsg = "Could not save your data.";
+                if (error.code === "PERMISSION_DENIED") {
+                    errorMsg += "\n\nError: Permission Denied.\nCHECK FIREBASE RULES for project 'geo-fencing-202f9'.";
+                } else {
+                    errorMsg += "\n\nError Details: " + error.message;
+                }
+                
+                alert(errorMsg);
+                
+                submitButton.disabled = false;
+                submitButton.textContent = "Get Your Unique Blockchain ID";
+            }
+        });
+
+        initGlobeScene();
+        window.addEventListener('resize', onWindowResize);
+        animate();
+    </script>
+</body>
+</html>

@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+  <title>ResQ 112 - Secure Chat & Contacts</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
+  
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <style>
+    :root {
+        --bg-color: #000000; --bg-image: none;
+        --text-color: #e0e0e0; --text-color-light: #fff; --text-highlight-glow: #00ffff;
+        --glow-button-text: #000; --hr-color: rgba(0, 255, 255, 0.2);
+        --glass-card-bg: rgba(255,255,255,0.05); --glass-card-border: rgba(255,255,255,0.1);
+        --input-bg: rgba(0,0,0,0.4);
+        --primary-font: 'Exo 2', sans-serif; --secondary-font: 'Space Grotesk', sans-serif;
+    }
+    body.light-theme {
+        --bg-color: #eaf2f8; --bg-image: radial-gradient(circle at 10% 10%, #ffffff 0%, #eaf2f8 80%);
+        --text-color: #34495e; --text-color-light: #1c2833;
+        --text-highlight-glow: #0056b3; --glow-button-text: #fff; --hr-color: rgba(0, 86, 179, 0.2);
+        --glass-card-bg: rgba(255,255,255,0.6); --glass-card-border: rgba(220,220,220,0.8);
+        --input-bg: rgba(0,0,0,0.05);
+    }
+    body {
+        font-family: var(--secondary-font); margin: 0;
+        background-color: var(--bg-color); background-image: var(--bg-image);
+        color: var(--text-color);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+    }
+    .content-container {
+        flex-grow: 1;
+        display: flex; flex-direction: column;
+        padding: 1.5rem; box-sizing: border-box; background: transparent;
+    }
+    header {
+        width: 100%; margin-bottom: 2rem;
+        display: flex; justify-content: space-between; align-items: center;
+    }
+    .logo-container { display: flex; align-items: center; gap: 0.75rem; }
+    .logo-container img { height: 60px; width: 60px; } 
+    .logo-container span { font-family: var(--secondary-font); font-weight: 700; font-size: 2rem; color: var(--text-color-light); }
+    #theme-switcher {
+        background: none; border: 1px solid var(--hr-color); border-radius: 50%; width: 40px; height: 40px;
+        cursor: pointer; display: flex; align-items: center; justify-content: center;
+        padding: 8px; color: var(--text-color-light);
+    }
+    .sun-icon { display: none; }
+    body.light-theme .moon-icon { display: none; }
+    body.light-theme .sun-icon { display: block; }
+    .glass-card {
+        background: var(--glass-card-bg); backdrop-filter:blur(10px); border:1px solid var(--glass-card-border);
+        color: var(--text-color);
+        border-radius: 1rem;
+    }
+    .glow-button {
+        background-color: var(--text-highlight-glow); color: var(--glow-button-text); font-weight: 700;
+        box-shadow: 0 0 8px var(--text-highlight-glow), 0 0 20px var(--text-highlight-glow);
+        transition:all .3s ease;
+        border-radius: 0.5rem;
+    }
+    .glow-button:hover{box-shadow:0 0 15px var(--text-highlight-glow),0 0 35px var(--text-highlight-glow);}
+    h1, h2 { color: var(--text-color-light); font-family: var(--primary-font); }
+    #messages {
+      flex-grow: 1; overflow-y: auto; padding: 1rem;
+    }
+    .message { margin-bottom: 0.75rem; max-width: 80%; }
+    .message p { padding: 0.5rem 1rem; border-radius: 1rem; line-height: 1.4; }
+    .user { align-self: flex-end; }
+    .user p { background-color: var(--text-highlight-glow); color: var(--glow-button-text); border-bottom-right-radius: 0; }
+    .support { align-self: flex-start; }
+    .support p { background-color: #333; border-bottom-left-radius: 0; }
+    body.light-theme .support p { background-color: #e5e7eb; color: #1c2833; }
+    #chatInput { background-color: var(--input-bg); border-color: var(--glass-card-border); color: var(--text-color-light); border-radius: 0.5rem; }
+    .emergency-btn { border: 1px solid var(--glass-card-border); color: var(--text-color); border-radius: 0.5rem; }
+    .emergency-btn:hover { background-color: var(--glass-card-bg); }
+
+    /* Main layout adjustment for cards */
+    .main-layout {
+        display: flex;
+        gap: 2rem; /* Space between cards */
+        flex-grow: 1;
+        justify-content: center;
+        align-items: flex-start; /* Align items to the top of the flex container */
+        max-width: 1200px; /* Optional: Limit width on very large screens */
+        margin: 0 auto;
+    }
+
+    .emergency-card, .chat-card {
+        padding: 1.5rem;
+        box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    }
+    .emergency-card {
+        flex: 0 0 300px; /* Fixed width for emergency card */
+        min-width: 280px;
+    }
+    .chat-card {
+        flex: 1; /* Chat card takes remaining space */
+        display: flex;
+        flex-direction: column;
+        min-height: 500px; /* Ensure chat card has a minimum height */
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+        .main-layout {
+            flex-direction: column;
+            align-items: center;
+            padding: 0 1.5rem;
+        }
+        .emergency-card, .chat-card {
+            width: 100%;
+            max-width: 500px; /* Constrain width on smaller screens */
+        }
+        header {
+            flex-direction: column;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            align-items: center;
+        }
+        .logo-container {
+            font-size: 1.5rem;
+            justify-content: center;
+            width: 100%;
+        }
+    }
+  </style>
+  <script>
+    (function() {
+        const currentTheme = localStorage.getItem('theme');
+        if (currentTheme === 'light') { document.body.classList.add('light-theme'); }
+    })();
+  </script>
+</head>
+<body>
+    <div class="content-container">
+        <header>
+            <div class="logo-container">
+                <img src="logo.png.png" alt="ResQ 112 Logo" />
+                <span>ResQ 112</span>
+            </div>
+            <div class="flex items-center gap-4">
+                <a href="dashboard.html" class="text-sm" style="color: var(--text-color-light); text-decoration: none; transition: color 0.3s;" onmouseover="this.style.color='var(--text-highlight-glow)'" onmouseout="this.style.color='var(--text-color-light)'">Back to Dashboard</a>
+                <button id="theme-switcher" title="Toggle theme">
+                    <svg class="moon-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.25a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0V3a.75.75 0 01.75-.75zM7.5 12a4.5 4.5 0 119 0 4.5 4.5 0 01-9 0zM18.894 6.106a.75.75 0 010 1.06l-1.591 1.59a.75.75 0 11-1.06-1.06l1.59-1.591a.75.75 0 011.06 0zM21.75 12a.75.75 0 01-.75.75h-2.25a.75.75 0 010-1.5H21a.75.75 0 01.75.75zM17.894 17.894a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06zM12 21a.75.75 0 01.75.75v2.25a.75.75 0 01-1.5 0v-2.25A.75.75 0 0112 21zM5.106 17.894a.75.75 0 010-1.06l1.591-1.59a.75.75 0 111.06 1.06l-1.59 1.591a.75.75 0 01-1.06 0zM3 12a.75.75 0 01.75-.75h2.25a.75.75 0 010 1.5H3.75A.75.75 0 013 12zM6.106 5.106a.75.75 0 011.06 0l1.59 1.591a.75.75 0 11-1.06 1.06l-1.591-1.59a.75.75 0 010-1.06z"></path></svg>
+                    <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path fill-rule="evenodd" d="M9.528 1.718a.75.75 0 01.162.819A8.97 8.97 0 009 6a9 9 0 009 9 8.97 8.97 0 003.463-.69.75.75 0 01.981.98 10.503 10.503 0 01-9.694 6.46c-5.799 0-10.5-4.701-10.5-10.5 0-3.51 1.713-6.625 4.43-8.56a.75.75 0 01.818.162z" clip-rule="evenodd"></path></svg>
+                </button>
+            </div>
+        </header>
+        
+        <main class="main-layout">
+            <div class="emergency-card glass-card">
+                <h2 class="text-xl font-bold mb-4 text-center">🚨 Emergency Numbers</h2>
+                <div class="flex flex-col gap-3">
+                    <a href="tel:100" class="emergency-btn p-3 rounded-lg text-center">Police: 100</a>
+                    <a href="tel:112" class="emergency-btn p-3 rounded-lg text-center">General: 112</a>
+                    <a href="tel:102" class="emergency-btn p-3 rounded-lg text-center">Ambulance: 102</a>
+                    <a href="tel:108" class="emergency-btn p-3 rounded-lg text-center">Medical Helpline: 108</a>
+                </div>
+            </div>
+
+            <div class="chat-card glass-card">
+                <h2 class="text-xl font-bold mb-4 text-center">💬 Secure Chat</h2>
+                <div id="messages" class="flex flex-col gap-2 flex-grow">
+                </div>
+                <div class="mt-4 flex gap-2">
+                    <input type="text" id="chatInput" placeholder="Type your message..." class="w-full p-3">
+                    <button id="sendBtn" class="px-6 py-3 glow-button">Send</button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script type="module">
+        // --- THEME SWITCHER ---
+        const themeSwitcher = document.getElementById('theme-switcher');
+        themeSwitcher.addEventListener('click', () => {
+            document.body.classList.toggle('light-theme');
+            const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark';
+            localStorage.setItem('theme', currentTheme);
+        });
+        
+        // --- FIREBASE & CHAT LOGIC ---
+        const firebaseConfig={ apiKey:"AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4", authDomain:"sos-c1499.firebaseapp.com", databaseURL:"https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app", projectId:"sos-c1499", storageBucket:"sos-c1499.appspot.com", messagingSenderId:"1008729495848", appId:"1:1008729495848:web:7d6c7d3a6047e2736e981d", measurementId:"G-JGBY3ZZPGC" };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        
+        const messagesDiv = document.getElementById('messages');
+        const chatInput = document.getElementById('chatInput');
+        const sendBtn = document.getElementById('sendBtn');
+        
+        // Chat Session ID: Use sessionStorage to maintain the session
+        let chatSessionId = sessionStorage.getItem('chatSessionId');
+        if (!chatSessionId) {
+            chatSessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+            sessionStorage.setItem('chatSessionId', chatSessionId);
+        }
+        const chatRef = db.ref('supportChats/' + chatSessionId);
+
+        function sendMessage() {
+            const text = chatInput.value.trim();
+            if (text === '') return;
+            
+            const message = {
+                sender: 'user',
+                text: text,
+                timestamp: new Date().toISOString()
+            };
+            
+            chatRef.push(message);
+            chatInput.value = '';
+            chatInput.focus(); // Keep focus on the input after sending
+        }
+
+        sendBtn.addEventListener('click', sendMessage);
+        chatInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+
+        // Listen for new messages
+        chatRef.on('child_added', (snapshot) => {
+            const msg = snapshot.val();
+            const msgDiv = document.createElement('div');
+            msgDiv.classList.add('message', msg.sender);
+            
+            const p = document.createElement('p');
+            p.textContent = msg.text;
+            msgDiv.appendChild(p);
+
+            messagesDiv.appendChild(msgDiv);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto-scroll to bottom
+        });
+
+        // Ensure chat input and messages container take available space
+        messagesDiv.style.minHeight = '200px'; // Give it some base height
+        messagesDiv.style.maxHeight = 'calc(100% - 120px)'; // Adjust based on header/input height
+    </script>
+</body>
+</html>

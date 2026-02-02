@@ -201,8 +201,9 @@ window.addEventListener("load", () => { const savedLang = localStorage.getItem("
 /* ---------------------------
    Gemini chat logic (Now with Template Prompts!)
 ---------------------------- */
-const GEMINI_API_KEY = "AIzaSyCJoiWlMq0JfpJqXhd-37MfKw3b1FIOg1k"; // REMEMBER TO USE YOUR OWN KEY
-const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+const GEMINI_API_KEY = "AIzaSyA_ntjZtH35lU_ds1qAfxtcvBneJCTqym8"; // REMEMBER TO USE YOUR OWN KEYc
+// Change "gemini-1.5-flash" to "gemini-2.5-flash"
+const GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 const inputBox = document.getElementById("userInput");
 document.getElementById("sendBtn").addEventListener("click", sendMessage);
 inputBox.addEventListener("keypress", e => { if (e.key === "Enter") sendMessage(); });

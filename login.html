@@ -8,6 +8,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;700;900&family=Space+Grotesk:wght@400;600;700&display=swap" rel="stylesheet"/>
   
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -48,6 +49,22 @@
     .logo-container span { font-family: var(--secondary-font); font-weight: 700; font-size: 2rem; color: var(--text-color-light); }
     .glow-button { background-color: var(--text-highlight-glow); color: var(--glow-button-text); font-weight: 700; box-shadow:0 0 8px var(--text-highlight-glow),0 0 20px var(--text-highlight-glow); transition:all .3s ease }
     .glow-button:hover { box-shadow:0 0 15px var(--text-highlight-glow),0 0 35px var(--text-highlight-glow); transform: scale(1.05); }
+    
+    /* Google Button Styles */
+    .google-btn {
+        background-color: #fff;
+        color: #000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        transition: transform 0.2s;
+    }
+    .google-btn:hover {
+        transform: scale(1.02);
+        background-color: #f1f1f1;
+    }
+
     #theme-switcher { position: absolute; top: 1.5rem; right: 2rem; background: none; border: 1px solid var(--hr-color); border-radius: 50%; width: 40px; height: 40px; cursor: pointer; display: flex; align-items: center; justify-content: center; padding: 8px; color: var(--text-color-light); z-index: 10; }
     #theme-switcher svg { width: 100%; height: 100%; }
     .sun-icon { display: none; }
@@ -85,6 +102,18 @@
                 <h2 class="text-4xl font-bold mb-8 text-center" style="font-family: var(--primary-font); color: var(--text-color-light);">
                     Identity Verification
                 </h2>
+                
+                <button type="button" onclick="signInWithGoogle()" class="w-full font-bold py-3 rounded-lg google-btn mb-6">
+                    <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google G" class="w-6 h-6">
+                    Sign in with Google
+                </button>
+
+                <div class="relative flex py-2 items-center mb-6">
+                    <div class="flex-grow border-t border-gray-600"></div>
+                    <span class="flex-shrink-0 mx-4 text-gray-400">OR</span>
+                    <div class="flex-grow border-t border-gray-600"></div>
+                </div>
+
                 <form id="login-form" class="space-y-4">
                     <div id="step1">
                         <input id="fullName" type="text" placeholder="Enter Full Name"
@@ -153,7 +182,7 @@
         const themeSwitcher = document.getElementById('theme-switcher');
         themeSwitcher.addEventListener('click', () => { document.body.classList.toggle('light-theme'); const currentTheme = document.body.classList.contains('light-theme') ? 'light' : 'dark'; localStorage.setItem('theme', currentTheme); });
 
-        // --- NEW FIREBASE CONFIGURATION (INTEGRATED) ---
+        // --- CORRECTED FIREBASE CONFIG ---
         const firebaseConfig = {
             apiKey: "AIzaSyAzwiwp0ByoUkofWPJG1Ux8BY8ueCDwVjM",
             authDomain: "geo-fencing-202f9.firebaseapp.com",
@@ -165,11 +194,39 @@
             measurementId: "G-WB7LFFPT4D"
         };
         
-        // Initialize Firebase (Compat)
-        if (!window.firebase.apps.length) {
-            window.firebase.initializeApp(firebaseConfig);
-        }
+        window.firebase.initializeApp(firebaseConfig);
         const db = window.firebase.database();
+        const auth = window.firebase.auth();
+
+        // --- Google Sign In Logic ---
+        window.signInWithGoogle = function() {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithPopup(provider)
+                .then((result) => {
+                    const user = result.user;
+                    const blockchainId = "BCID-" + user.uid.substring(0, 8).toUpperCase();
+                    
+                    const userData = {
+                        name: user.displayName,
+                        email: user.email,
+                        method: 'google',
+                        id: user.uid,
+                        blockchainId: blockchainId,
+                        photoURL: user.photoURL,
+                        updatedAt: Date.now()
+                    };
+
+                    db.ref("users/" + user.uid).update(userData)
+                    .then(() => {
+                        localStorage.setItem("userId", user.uid);
+                        window.location.href = "dashboard.html";
+                    });
+                })
+                .catch((error) => {
+                    console.error("Google Sign In Error:", error);
+                    alert("Google Sign In failed: " + error.message);
+                });
+        };
 
         // Form navigation logic
         window.nextStep = function(step) {
@@ -191,7 +248,7 @@
                 idNumberInput.placeholder = "Enter Passport Number";
                 otpInput.placeholder = "Enter OTP received on WhatsApp";
                 nextStep('1_5');
-            } else { // 'aadhaar'
+            } else { 
                 idNumberInput.placeholder = "Enter Aadhaar Number";
                 otpInput.placeholder = "Enter OTP";
                 nextStep('2');
@@ -207,33 +264,23 @@
 
             const name = document.getElementById("fullName").value;
             const method = document.getElementById("method").value;
-            const rawId = document.getElementById("idNumber").value;
+            const id = document.getElementById("idNumber").value;
             const whatsapp = document.getElementById("whatsappNumber").value;
 
-            if (!name || !method || !rawId) {
+            if (!name || !method || !id) {
                 alert("Please fill all fields");
                 submitButton.disabled = false;
                 submitButton.textContent = "Get Your Unique Blockchain ID";
                 return;
             }
             
-            // Clean ID for Database Key (Remove . # $ [ ] /)
-            const safeId = rawId.replace(/[.#$\[\]\/]/g, "-").trim();
-
-            if(safeId.length === 0) {
-                 alert("Invalid ID Number format. Please try again.");
-                 submitButton.disabled = false;
-                 submitButton.textContent = "Get Your Unique Blockchain ID";
-                 return;
-            }
-
             const blockchainId = "BCID-" + Math.random().toString(36).substring(2, 10).toUpperCase();
             
             try {
                 const userData = { 
                     name, 
                     method, 
-                    id: rawId,
+                    id, 
                     blockchainId, 
                     updatedAt: Date.now() 
                 };
@@ -242,23 +289,14 @@
                     userData.whatsapp = whatsapp;
                 }
 
-                await db.ref("users/" + safeId).set(userData);
+                await db.ref("users/" + id).set(userData);
 
-                localStorage.setItem("userId", safeId);
+                localStorage.setItem("userId", id);
                 window.location.href = "dashboard.html";
 
             } catch (error) {
                 console.error("Firebase write failed:", error);
-                
-                let errorMsg = "Could not save your data.";
-                if (error.code === "PERMISSION_DENIED") {
-                    errorMsg += "\n\nError: Permission Denied.\nCHECK FIREBASE RULES for project 'geo-fencing-202f9'.";
-                } else {
-                    errorMsg += "\n\nError Details: " + error.message;
-                }
-                
-                alert(errorMsg);
-                
+                alert("Could not save your data. Please try again.");
                 submitButton.disabled = false;
                 submitButton.textContent = "Get Your Unique Blockchain ID";
             }

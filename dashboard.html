@@ -196,13 +196,15 @@
         localStorage.setItem('theme', currentTheme);
     });
 
-    // --- DASHBOARD & FIREBASE LOGIC (UNCHANGED) ---
+    // --- DASHBOARD & FIREBASE LOGIC ---
     const firebaseConfig={ apiKey:"AIzaSyBcLtaRPt6hTo4aEFRvcBwNq5-00soEjB4", authDomain:"sos-c1499.firebaseapp.com", databaseURL:"https://sos-c1499-default-rtdb.asia-southeast1.firebasedatabase.app", projectId:"sos-c1499", storageBucket:"sos-c1499.appspot.com", messagingSenderId:"1008729495848", appId:"1:1008729495848:web:7d6c7d3a6047e2736e981d", measurementId:"G-JGBY3ZZPGC" };
     firebase.initializeApp(firebaseConfig);
     const db=firebase.database();
     const sosBtn=document.getElementById("sosBtn"), stopBtn=document.getElementById("stopBtn"), sosAudio=document.getElementById("sosAudio"), sosKeyText=document.getElementById("sosKeyText");
     let currentSosKey = null, watchId = null;
+    
     function getUserInfo() { const name = localStorage.getItem("userName") || "Unknown"; const id = localStorage.getItem("userId") || "unknown"; return { name, id }; }
+    
     async function startSOS() {
         sosBtn.classList.add("hidden"); stopBtn.classList.remove("hidden"); sosBtn.classList.add("sos-active");
         try { sosAudio.currentTime = 0; await sosAudio.play(); } catch (err) { console.warn("Audio play blocked:", err); }
@@ -220,20 +222,32 @@
             });
         }, (err) => { alert("Could not get location: " + err.message); });
     }
+
     async function stopSOS() {
         sosBtn.classList.remove("hidden"); stopBtn.classList.add("hidden"); sosBtn.classList.remove("sos-active"); sosKeyText.innerText = "";
         try { sosAudio.pause(); sosAudio.currentTime = 0; } catch (err) { console.warn("Failed to stop audio:", err); }
         if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+        
         const key = currentSosKey || localStorage.getItem('currentSosKey');
+        // Always clear storage immediately to prevent stuck state
+        localStorage.removeItem('currentSosKey'); 
+        currentSosKey = null;
+
         if (!key) { return; }
         try {
-            const snap = await db.ref('sos/' + key).once('value'); const data = snap.val(); if (!data) { return; }
-            data.stoppedAt = Date.now(); data.status = "archived";
-            await db.ref('archived_sos/' + key).set(data); await db.ref('sos/' + key).remove();
-            currentSosKey = null; localStorage.removeItem('currentSosKey'); alert("SOS stopped and archived.");
+            const snap = await db.ref('sos/' + key).once('value'); 
+            const data = snap.val(); 
+            // If data exists, archive it. If not, we just successfully cleared the local stuck state above.
+            if (data) { 
+                data.stoppedAt = Date.now(); data.status = "archived";
+                await db.ref('archived_sos/' + key).set(data); await db.ref('sos/' + key).remove();
+            }
+            alert("SOS stopped.");
         } catch (err) { console.error("Error archiving SOS:", err); }
     }
+
     sosBtn.addEventListener("click", startSOS); stopBtn.addEventListener("click", stopSOS);
+    
     const translations={ en:{ sos_btn:"SOS", stop_btn:"Stop SOS", profile_title:"👤 Profile", profile_desc:"View and update your details.", wearable_title:"⌚ Wearable & Emergency Contacts", wearable_desc:"Connect devices and manage your emergency numbers.", map_title:"🗺️ Map", map_desc:"Track your location and nearby safe zones.", contacts_title:"⚖️ File an FIR", contacts_desc:"File a First Information Report online.", askai_title:"🤖 Ask AI", askai_desc:"Get real-time AI assistance.", support_title:"🚨 Incident Response System using AI", support_desc:"AI-powered analysis and response for incidents." }, hi:{ sos_btn:"एसओएस", stop_btn:"एसओएस रोकें", profile_title:"👤 प्रोफ़ाइल", profile_desc:"अपनी जानकारी देखें और अपडेट करें।", wearable_title:"⌚ वियरेबल और आपातकालीन संपर्क", wearable_desc:"अपने वियरेबल उपकरण और आपातकालीन नंबर प्रबंधित करें।", map_title:"🗺️ नक्शा", map_desc:"अपना स्थान और पास के सुरक्षित क्षेत्र ट्रैक करें।", contacts_title:"⚖️ एफआईआर दर्ज करें", contacts_desc:"ऑनलाइन प्रथम सूचना रिपोर्ट दर्ज करें।", askai_title:"🤖 एआई से पूछें", askai_desc:"रियल-टाइम एआई सहायता प्राप्त करें।", support_title:"🚨 एआई का उपयोग कर घटना प्रतिक्रिया प्रणाली", support_desc:"घटनाओं के लिए एआई-संचालित विश्लेषण और प्रतिक्रिया।" }, as:{ sos_btn:"এসওএছ", stop_btn:"এসওএছ বন্ধ কৰক", profile_title:"👤 প্ৰ’ফাইল", profile_desc:"আপোনাৰ তথ্য চাওক আৰু আপডেট কৰক।", wearable_title:"⌚ পৰিধানযোগ্য আৰু জরুৰী যোগাযোগ", wearable_desc:"আপোনাৰ পৰিধানযোগ্য ডিভাইচ আৰু জরুৰী নম্বৰ ব্যৱস্থাপনা কৰক।", map_title:"🗺️ মানচিত্ৰ", map_desc:"আপোনাৰ অৱস্থান আৰু ওচৰৰ সুৰক্ষিত এলাকা অনুসৰণ কৰক।", contacts_title:"⚖️ এজাহাৰ দাখিল কৰক", contacts_desc:"অনলাইনত প্ৰথম তথ্য প্ৰতিবেদন দাখিল কৰক।", askai_title:"🤖 এআইক প্ৰশ্ন কৰক", askai_desc:"ৰিয়েল-টাইম এআই সহায় প্ৰাপ্ত কৰক।", support_title:"🚨 এআই ব্যৱহাৰ কৰি ঘটনা সঁহাৰি প্ৰণালী", support_desc:"घटनाৰ বাবে এআই-চালিত বিশ্লেষণ আৰু সঁহাৰি।" } };
     const switcher=document.getElementById("languageSwitcher");
     function updateLanguage(lang){
@@ -242,11 +256,25 @@
         sosBtn.innerText=translations[lang].sos_btn; stopBtn.innerText=translations[lang].stop_btn;
     }
     switcher.addEventListener("change",e=>updateLanguage(e.target.value));
+    
+    // --- UPDATED LOAD LOGIC TO FIX AUTOMATIC TRIGGER ---
     window.addEventListener("load",()=>{
         const existing = localStorage.getItem('currentSosKey');
         if (existing) {
-            currentSosKey = existing; sosKeyText.innerText = `Active SOS: ${currentSosKey}`;
-            sosBtn.classList.add("hidden"); stopBtn.classList.remove("hidden"); sosBtn.classList.add("sos-active");
+            // VERIFY with database before activating UI
+            db.ref('sos/' + existing).once('value').then((snapshot) => {
+                if (snapshot.exists()) {
+                    // Only restore state if SOS is legitimately active in DB
+                    currentSosKey = existing; 
+                    sosKeyText.innerText = `Active SOS: ${currentSosKey}`;
+                    sosBtn.classList.add("hidden"); 
+                    stopBtn.classList.remove("hidden"); 
+                    sosBtn.classList.add("sos-active");
+                } else {
+                    // If key is in localStorage but NOT in DB, clear it (Fixes the bug)
+                    localStorage.removeItem('currentSosKey');
+                }
+            });
         }
         const savedLang=localStorage.getItem("lang")||"en";
         switcher.value=savedLang; updateLanguage(savedLang);
